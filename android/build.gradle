@@ -1,0 +1,61 @@
+group 'com.example.wise_apartment'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.0.0'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.example.wise_apartment'
+    compileSdk 33
+
+    defaultConfig {
+        minSdk 21
+        
+        // --- BUILDFIELDS ---
+        buildConfigField "String", "BUILD_APPLICATION_ID", "\"${defaultConfig.namespace}\"" 
+        buildConfigField "String", "BUILD_NAMESPACE", "\"com.example.wise_apartment\""
+        buildConfigField "String", "BUILD_VERSION_NAME", "\"1.0.0\""
+        buildConfigField "String", "BUILD_VERSION_CODE", "\"100\""
+        buildConfigField "String", "BUILD_MIN_SDK", "\"21\""
+        buildConfigField "String", "BUILD_TARGET_SDK", "\"33\""
+        buildConfigField "String", "BUILD_COMPILE_SDK", "\"33\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+    
+    // For HXJ SDK AAR import
+    repositories {
+        flatDir {
+             dirs 'libs'
+        }
+    }
+}
+
+dependencies {
+    implementation name: 'hxjblinklibrary_2.5.0[19]_release_202407051548', ext: 'aar' 
+    implementation name: 'bleoad-release', ext: 'aar'
+    implementation name: 'dfu_release', ext: 'aar'
+    
+    // Transitive dependencies required by HXJ SDK usually
+    implementation 'androidx.appcompat:appcompat:1.4.2'
+    implementation 'com.google.android.material:material:1.6.1'
+    implementation 'com.google.code.gson:gson:2.8.6'
+}
