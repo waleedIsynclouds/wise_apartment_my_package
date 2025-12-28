@@ -6,6 +6,8 @@ plugins {
     id 'org.jetbrains.kotlin.kapt'
 }
 
+// apply plugin: 'maven-publish'
+
 group 'com.example.wise_apartment'
 version '1.0-SNAPSHOT'
 
@@ -55,21 +57,34 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 
+// Use only Maven repositories, including the local one for the vendor AAR
 repositories {
+    google()
+    mavenCentral()
     flatDir {
         dirs 'libs'
+    }
+    maven { 
+        url uri("${project.projectDir}/maven-repo")
     }
 }
 
 dependencies {
-    // Include local AAR/JAR dependencies in the plugin build
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+    // HXJ SDK and BLE dependencies
+    // Compile against vendor AARs only; consumers (apps) must provide the real AARs
+    compileOnly fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+    compileOnly(name: 'hxjblinklibrary_2.5.0[19]_release_202407051548', ext: 'aar')
+    compileOnly(name: 'bleoad-release', ext: 'aar')
+    compileOnly(name: 'dfu_release', ext: 'aar')
+    implementation 'no.nordicsemi.android.support.v18:scanner:1.4.3'
+    implementation 'no.nordicsemi.android:log:2.2.0'
+    implementation 'no.nordicsemi.android:ble:2.2.3'
 
     // Core AndroidX
     implementation 'androidx.core:core-ktx:1.12.0'
@@ -88,23 +103,12 @@ dependencies {
     implementation 'androidx.room:room-ktx:2.6.1'
     kapt 'androidx.room:room-compiler:2.6.1'
 
-
     // Lifecycle components
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-common-java8:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
 
-
-
-    implementation 'androidx.recyclerview:recyclerview:1.1.0'
-
-    // Nordic BLE and logging
-    implementation 'no.nordicsemi.android.support.v18:scanner:1.6.0'
-    implementation 'no.nordicsemi.android:log:2.5.0'
-    implementation 'no.nordicsemi.android:ble:2.11.0'
-
-    // Removed unresolved external Android UI libraries to avoid build errors
-
+    // ...other dependencies...
     implementation 'com.google.code.gson:gson:2.8.6'
 }

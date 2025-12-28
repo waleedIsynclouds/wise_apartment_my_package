@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'dart:io' show Platform;
@@ -65,13 +67,14 @@ class _MyAppState extends State<MyApp> {
 
         // If any required permission is denied, prompt the user
         bool allGranted = true;
-        for (final p in permissions) {
-          final s = await p.status;
-          if (!s.isGranted) {
-            allGranted = false;
-            break;
-          }
-        }
+        // for (final p in permissions) {
+        //   final s = await p.status;
+        //   log('Permission ${p.toString()}: ${s.toString()}');
+        //   if (!s.isGranted) {
+        //     allGranted = false;
+        //     break;
+        //   }
+        // }
 
         if (!allGranted) {
           _addLog(

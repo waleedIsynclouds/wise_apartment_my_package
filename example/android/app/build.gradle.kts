@@ -41,14 +41,17 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
-
-
-    dependencies {
-        // Ensure example app packages the native AARs located in example/android/app/libs
-        implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
-    }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Optionally, if you need to use the vendor SDK directly in the example app:
+    // implementation("com.hxj:ble:2.5.0")
+    // Or, if you only use the plugin, you may omit this.
+
+    // If you have local .aar files for other reasons, you can keep this:
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
 }
