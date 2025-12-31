@@ -4,6 +4,7 @@ plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.kapt'
+    id 'maven-publish'
 }
 
 // apply plugin: 'maven-publish'
@@ -38,6 +39,8 @@ android {
         // buildConfigField "String", "BUILD_COMPILE_SDK", \"34\"
 
         multiDexEnabled true
+        // Ensure consumer ProGuard rules are packaged for apps consuming this plugin
+        consumerProguardFiles 'consumer-rules.pro'
     }
 
     buildFeatures {
@@ -64,27 +67,26 @@ android {
 }
 
 // Use only Maven repositories, including the local one for the vendor AAR
-repositories {
-    google()
-    mavenCentral()
-    flatDir {
-        dirs 'libs'
-    }
-    maven { 
-        url uri("${project.projectDir}/maven-repo")
-    }
-}
+// repositories {
+//     google()
+//     mavenCentral()
+//     flatDir {
+//         dirs 'libs'
+//     }
+//     maven { 
+//         url uri("${project.projectDir}/maven-repo")
+//     }
+// }
 
 dependencies {
     // HXJ SDK and BLE dependencies
     // Compile against vendor AARs only; consumers (apps) must provide the real AARs
+    // Use local AARs from android/libs for compilation only to avoid publishing
+    // vendor classes twice (as file + as published maven coordinates).
     compileOnly fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
-    compileOnly(name: 'hxjblinklibrary_2.5.0[19]_release_202407051548', ext: 'aar')
-    compileOnly(name: 'bleoad-release', ext: 'aar')
-    compileOnly(name: 'dfu_release', ext: 'aar')
-    implementation 'no.nordicsemi.android.support.v18:scanner:1.4.3'
-    implementation 'no.nordicsemi.android:log:2.2.0'
-    implementation 'no.nordicsemi.android:ble:2.2.3'
+    implementation "no.nordicsemi.android.support.v18:scanner:1.6.0"
+    implementation "no.nordicsemi.android:log:2.5.0"
+    implementation "no.nordicsemi.android:ble:2.11.0"
 
     // Core AndroidX
     implementation 'androidx.core:core-ktx:1.12.0'
@@ -95,7 +97,7 @@ dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
 
     // SQLite native workaround for some platforms (as in app module)
-    kapt "org.xerial:sqlite-jdbc:3.36.0.1"
+    // kapt "org.xerial:sqlite-jdbc:3.36.0.1"
 
     // Room components
     implementation 'androidx.preference:preference-ktx:1.2.1'
@@ -111,4 +113,37 @@ dependencies {
 
     // ...other dependencies...
     implementation 'com.google.code.gson:gson:2.8.6'
+    // Expose vendor artifacts as Maven coordinates after publishing them locally
+    // Do not expose the vendor AARs as API coordinates while developing locally
+    // to prevent apps from resolving both the file and published versions.
+}
+
+// Publishing local vendor AARs into android/maven-repo so the plugin can
+// depend on them via Maven coordinates. Run: ./gradlew publish
+publishing {
+    publications {
+        hxjblinklibrary(MavenPublication) {
+            groupId 'com.hxj.vendor'
+            artifactId 'hxjblinklibrary'
+            version '2.5.0'
+            artifact file("$projectDir/libs/hxjblinklibrary.aar")
+        }
+        bleoad(MavenPublication) {
+            groupId 'com.hxj.vendor'
+            artifactId 'bleoad'
+            version '1.0.0'
+            artifact file("$projectDir/libs/bleoad-release.aar")
+        }
+        dfu(MavenPublication) {
+            groupId 'com.hxj.vendor'
+            artifactId 'dfu'
+            version '1.0.0'
+            artifact file("$projectDir/libs/dfu_release.aar")
+        }
+    }
+    repositories {
+        maven {
+            url = uri("$projectDir/maven-repo")
+        }
+    }
 }

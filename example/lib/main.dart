@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'dart:io' show Platform;

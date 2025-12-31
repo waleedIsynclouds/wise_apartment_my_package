@@ -36,10 +36,28 @@ public class BleScanManager {
             public void onHxjScanResults(@NonNull List<HxjBluetoothDevice> results) {
                 for (HxjBluetoothDevice device : results) {
                     Map<String, Object> d = new HashMap<>();
-                    d.put("mac", device.getMac());
+                    // Basic identifiers
+                    String mac = null;
+                    try {
+                        mac = device.getMac();
+                    } catch (Exception ignored) {}
+                    d.put("mac", mac != null ? mac : device.getAddress());
+                    d.put("address", device.getAddress());
                     d.put("name", device.getName());
                     d.put("rssi", device.getRssi());
-                    uniqueDevices.put(device.getMac(), d);
+
+                    // Additional properties from HxjBluetoothDevice
+                    try { d.put("chipType", device.getChipType()); } catch (Exception ignored) {}
+                    try { d.put("lockType", device.getLockType()); } catch (Exception ignored) {}
+                    try { d.put("isPaired", device.isPaired()); } catch (Exception ignored) {}
+                    try { d.put("isDiscoverable", device.isDiscoverable()); } catch (Exception ignored) {}
+                    try { d.put("isNewProtocol", device.isNewProtocol()); } catch (Exception ignored) {}
+                    try { d.put("hasLockEvent", device.isHasLockEvent()); } catch (Exception ignored) {}
+                    try { d.put("isSupported", device.isSupported()); } catch (Exception ignored) {}
+                    try { d.put("settedMac", device.isSettedMac()); } catch (Exception ignored) {}
+                    try { d.put("isSupportReSetMac", device.isSupportReSetMac()); } catch (Exception ignored) {}
+
+                    uniqueDevices.put(mac != null ? mac : device.getAddress(), d);
                 }
             }
             

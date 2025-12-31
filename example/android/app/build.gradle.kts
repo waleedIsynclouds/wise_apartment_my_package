@@ -52,6 +52,21 @@ dependencies {
     // implementation("com.hxj:ble:2.5.0")
     // Or, if you only use the plugin, you may omit this.
 
-    // If you have local .aar files for other reasons, you can keep this:
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+    // Example should not bundle vendor AARs directly when the plugin provides them.
+    // To use vendor SDK classes directly in the example, depend on published coordinates
+    // after running the plugin publish task. Example (optional):
+    implementation("com.hxj.vendor:hxjblinklibrary:2.5.0")
+
+    // If you depend on additional vendor modules (DFU, platform-specific), add them here:
+    // implementation("com.hxj.vendor:bleoad:1.0.0")
+    // implementation("com.hxj.vendor:dfu:1.0.0")
+
+     
+     // Brings the new BluetoothLeScanner API to older platforms
+    implementation("no.nordicsemi.android.support.v18:scanner:1.6.0")
+    // Log Bluetooth LE events in nRF Logger
+    implementation("no.nordicsemi.android:log:2.5.0")
+    // BLE library
+    //implementation("no.nordicsemi.android:ble:2.2.4")
+    implementation("no.nordicsemi.android:ble:2.11.0")
 }

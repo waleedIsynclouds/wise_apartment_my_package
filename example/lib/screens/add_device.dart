@@ -11,7 +11,7 @@ class AddDeviceScreen extends StatefulWidget {
 
 class _AddDeviceScreenState extends State<AddDeviceScreen> {
   final _plugin = WiseApartment();
-  List<Map<String, dynamic>> _scanned = [];
+  List<HxjBluetoothDeviceModel> _scanned = [];
   bool _scanning = false;
 
   @override
@@ -21,86 +21,62 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
   }
 
   Future<void> _startScan() async {
-    setState(() => _scanning = true);
+    if (mounted) setState(() => _scanning = true);
     try {
       final results = await _plugin.startScan(timeoutMs: 5000);
-      setState(() => _scanned = results);
+      final list = (results)
+          .map((e) => HxjBluetoothDeviceModel.fromMap(e))
+          .toList();
+      if (mounted) setState(() => _scanned = list);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
+      }
     } finally {
-      setState(() => _scanning = false);
+      if (mounted) setState(() => _scanning = false);
     }
   }
 
-  Future<void> _pairAndSave(Map<String, dynamic> device) async {
-    final mac = device['mac'] ?? '';
-    final authCodeController = TextEditingController();
-    final dnaKeyController = TextEditingController();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Pair device'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('MAC: $mac'),
-            TextField(
-              controller: authCodeController,
-              decoration: const InputDecoration(labelText: 'Auth Code'),
-            ),
-            TextField(
-              controller: dnaKeyController,
-              decoration: const InputDecoration(labelText: 'DNA Key'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Pair'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok != true) return;
-
-    final auth = {
-      'mac': mac,
-      'authCode': authCodeController.text,
-      'dnaKey': dnaKeyController.text,
-      'keyGroupId': 1,
-      'bleProtocolVer': 2,
-    };
-
-    try {
-      final success = await _plugin.openLock(auth);
-      if (success == true) {
-        final toSave = {
-          'mac': mac,
-          'name': device['name'] ?? '',
-          'rssi': device['rssi'] ?? 0,
-          'authCode': auth['authCode'],
-          'dnaKey': auth['dnaKey'],
-        };
-        await SecureDeviceStorage.addDevice(toSave);
-        Navigator.pop(context, toSave);
-      } else {
+  Future<void> _addDeviceNative(HxjBluetoothDeviceModel device) async {
+    final mac = device.getMac();
+    if (mac == null || mac.isEmpty) {
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Pair failed')));
+        ).showSnackBar(const SnackBar(content: Text('Invalid device MAC')));
+      }
+      return;
+    }
+
+    try {
+      final cipType = device.chipType ?? 0;
+      final res = await _plugin.addDevice(mac, cipType);
+
+      Map<String, dynamic>? toSave;
+      if (res is Map) {
+        toSave = Map<String, dynamic>.from(res);
+      } else if (res == true || res == 'ok' || res == 'true') {
+        toSave = device.toMap();
+      }
+
+      if (toSave != null) {
+        await SecureDeviceStorage.addDevice(toSave);
+        if (mounted) Navigator.pop(context, toSave);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Add device failed: $res')));
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Pair error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Add error: $e')));
+      }
     }
   }
 
@@ -123,11 +99,11 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
                   final d = _scanned[i];
                   return ListTile(
                     leading: const Icon(Icons.devices),
-                    title: Text(d['name'] ?? 'Unknown'),
-                    subtitle: Text(d['mac'] ?? ''),
+                    title: Text(d.name ?? 'Unknown'),
+                    subtitle: Text(d.getMac() ?? ''),
                     trailing: ElevatedButton(
                       child: const Text('Add'),
-                      onPressed: () => _pairAndSave(d),
+                      onPressed: () => _addDeviceNative(d),
                     ),
                   );
                 },

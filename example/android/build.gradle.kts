@@ -1,7 +1,10 @@
 allprojects {
     repositories {
         google()
+        mavenLocal()
         mavenCentral()
+        // Resolve vendor AARs published by the plugin to the local maven-repo
+        maven { url = uri("../../android/maven-repo") }
     }
 }
 

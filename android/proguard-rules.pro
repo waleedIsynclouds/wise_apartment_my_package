@@ -1,23 +1,34 @@
-# ProGuard rules for wise_apartment Android library
-# Add custom rules below as needed
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep all classes in the library (customize as needed)
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
+
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile
+-keep class com.example.hxjblinklibrary.** { *; }
+-dontwarn com.example.hxjblinklibrary.**
+# Suppress warnings for the generated plugin class
+-dontwarn com.example.wise_apartment.WiseApartmentPlugin
+
+# Keep plugin classes to avoid R8 stripping reflective/Flutter-registered code
 -keep class com.example.wise_apartment.** { *; }
 
-# Add rules for third-party libraries if needed
-# Example: Gson
--keep class com.google.gson.** { *; }
--keepattributes Signature
--keepattributes *Annotation*
+# Also suppress warnings for vendor package reported by R8 (missing_rules.txt)
+-dontwarn om.example.hxjblinklibrary.**
 
-# Add rules for Room (if used)
--keep class androidx.room.** { *; }
--keep class androidx.sqlite.** { *; }
--keepclassmembers class * {
-    @androidx.room.* <methods>;
-}
-
-# Add rules for BLE libraries if needed
--keep class no.nordicsemi.android.** { *; }
-
-# Add any additional rules below
+# Specific missing class reported by R8
+-dontwarn om.example.hxjblinklibrary.b.d

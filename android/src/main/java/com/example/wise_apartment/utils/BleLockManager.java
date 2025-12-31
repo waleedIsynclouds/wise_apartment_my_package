@@ -9,6 +9,7 @@ import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
 import com.example.hxjblinklibrary.blinkble.entity.Response;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.HxBLEUnlockResult;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.DnaInfo;
+import com.example.hxjblinklibrary.blinkble.entity.reslut.SysParamResult;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.OpenLockAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleSetHotelLockSystemAction;
@@ -132,6 +133,128 @@ public class BleLockManager {
             @Override
             public void onFailure(Throwable t) {
                  result.error("ERROR", t.getMessage(), null);
+            }
+        });
+    }
+
+    /**
+     * Add device (orchestrates the sample app flow):
+     * 1) addDevice -> receives DnaInfo
+     * 2) build base auth action and call getSysParam
+     * 3) on success call pairSuccessInd and rfModulePairing
+     */
+    public void addDevice(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "addDevice called with args: " + args);
+        // Try to build the BlinkyAuthAction from `mac` (Method 2 in sample app).
+        // If `mac` is not provided, fall back to PluginUtils.createAuthAction(args).
+        final com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction auth;
+
+        String mac = null;
+        if (args != null && args.containsKey("mac")) {
+            Object m = args.get("mac");
+            if (m instanceof String) mac = (String) m;
+        }
+
+        if (mac != null && !mac.isEmpty()) {
+            auth = new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder()
+                    .mac(mac)
+                    .build();
+        } else {
+            auth = com.example.wise_apartment.utils.PluginUtils.createAuthAction(args);
+        }
+
+        int chipType = 0;
+        if (args != null && args.containsKey("chipType")) {
+            Object v = args.get("chipType");
+            if (v instanceof Integer) chipType = (Integer) v;
+            else if (v instanceof String) {
+                try { chipType = Integer.parseInt((String) v); } catch (Exception ignored) {}
+            }
+        }
+
+        bleClient.addDevice(auth, chipType, new FunCallback<DnaInfo>() {
+            @Override
+            public void onResponse(Response<DnaInfo> response) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    result.error("FAILED", "addDevice failed: Code " + response.code(), null);
+                    return;
+                }
+
+                DnaInfo dna = response.body();
+                Log.d(TAG, "addDevice got DnaInfo: " + dna.getMac());
+
+                // Build base auth action from dna info (mimic sample saveAuthInfo)
+                com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction baseAuth = new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder()
+                        .bleProtocolVer(dna.getProtocolVer())
+                        .authCode(dna.getAuthorizedRoot())
+                        .dnaKey(dna.getDnaAes128Key())
+                        .mac(dna.getMac())
+                        .keyGroupId(900)
+                        .build();
+
+                // Query device status (getSysParam) then call pairSuccessInd
+                BlinkyAction action = new BlinkyAction();
+                action.setBaseAuthAction(baseAuth);
+
+                try {
+                    bleClient.getSysParam(action, new FunCallback<SysParamResult>() {
+                        @Override
+                        public void onResponse(Response<SysParamResult> resp) {
+                            if (!resp.isSuccessful() || resp.body() == null) {
+                                result.error("FAILED", "getSysParam failed: Code " + resp.code(), null);
+                                return;
+                            }
+
+                            // Now notify device that pairing succeeded on server
+                            bleClient.pairSuccessInd(action, true, new FunCallback() {
+                                @Override
+                                public void onResponse(Response response) {
+                                    bleClient.disConnectBle(null);
+                                    if (response.isSuccessful()) {
+                                        try {
+                                            bleClient.rfModulePairing(action, "", new FunCallback() {
+                                                @Override
+                                                public void onResponse(Response response) {
+                                                    Log.d(TAG, "rfModulePairing response: " + response.code());
+                                                }
+
+                                                @Override
+                                                public void onFailure(Throwable throwable) {
+                                                    Log.d(TAG, "rfModulePairing failure: " + throwable.getMessage());
+                                                }
+                                            });
+                                        } catch (Exception ignored) {}
+
+                                        result.success(true);
+                                    } else {
+                                        result.error("FAILED", "pairSuccessInd failed: Code " + response.code(), null);
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Throwable t) {
+                                    Log.e(TAG, "pairSuccessInd failed", t);
+                                    result.error("ERROR", t.getMessage(), null);
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(Throwable t) {
+                            Log.e(TAG, "getSysParam failed", t);
+                            result.error("ERROR", t.getMessage(), null);
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Exception during addDevice flow", e);
+                    result.error("ERROR", e.getMessage(), null);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                Log.e(TAG, "addDevice failed", t);
+                result.error("ERROR", t.getMessage(), null);
             }
         });
     }

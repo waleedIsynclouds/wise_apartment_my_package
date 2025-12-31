@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'wise_apartment_platform_interface.dart';
 export 'src/wise_apartment_exception.dart';
+export 'src/models/hxj_bluetooth_device_model.dart';
 
 class WiseApartment {
   /// Returns the platform version (e.g. "Android 12", "iOS 15.0").
