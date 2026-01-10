@@ -38,7 +38,7 @@ class HXRecord2AlarmModel extends HXRecord2BaseModel {
       'eventFlag',
       'power',
       'faultType',
-      'lockKeyId'
+      'lockKeyId',
     ]) {
       raw.remove(k);
     }

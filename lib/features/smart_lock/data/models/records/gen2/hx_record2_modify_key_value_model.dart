@@ -58,8 +58,9 @@ class HXRecord2ModifyKeyValueModel extends HXRecord2BaseModel {
       'key',
       'vaildNumber',
       'modifyLockKeyId',
-      'modifyKeyGroupId'
-    ]) raw.remove(k);
+      'modifyKeyGroupId',
+    ])
+      raw.remove(k);
 
     return HXRecord2ModifyKeyValueModel(
       recordTime: recordTime,

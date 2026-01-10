@@ -70,8 +70,9 @@ class HXRecord2UnlockModel extends HXRecord2BaseModel {
       'keyLen1',
       'key1',
       'Key1RemainingTimes',
-      'key2RemainingTimes'
-    ]) raw.remove(k);
+      'key2RemainingTimes',
+    ])
+      raw.remove(k);
 
     return HXRecord2UnlockModel(
       recordTime: recordTime,

@@ -46,8 +46,9 @@ class HXRecord1ModifyKeyModel extends HXRecord1BaseModel {
       'opporKeyGroupId',
       'modifyLockKeyId',
       'modifyLockKeyType',
-      'key'
-    ]) raw.remove(k);
+      'key',
+    ])
+      raw.remove(k);
 
     return HXRecord1ModifyKeyModel(
       recordTime: recordTime,

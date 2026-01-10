@@ -54,8 +54,9 @@ class HXRecord2KeyenableModel extends HXRecord2BaseModel {
       'modifyLockKeyId',
       'modifyKeyTypes',
       'modifyKeyGroupId',
-      'enable'
-    ]) raw.remove(k);
+      'enable',
+    ])
+      raw.remove(k);
 
     return HXRecord2KeyenableModel(
       recordTime: recordTime,

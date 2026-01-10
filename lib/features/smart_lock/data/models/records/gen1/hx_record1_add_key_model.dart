@@ -42,8 +42,9 @@ class HXRecord1AddKeyModel extends HXRecord1BaseModel {
       'power',
       'opporKeyGroupId',
       'addLockKeyId',
-      'keyType'
-    ]) raw.remove(k);
+      'keyType',
+    ])
+      raw.remove(k);
 
     return HXRecord1AddKeyModel(
       recordTime: recordTime,

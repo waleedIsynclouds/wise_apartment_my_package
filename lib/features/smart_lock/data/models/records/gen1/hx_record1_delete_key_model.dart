@@ -38,8 +38,9 @@ class HXRecord1DeleteKeyModel extends HXRecord1BaseModel {
       'eventFlag',
       'power',
       'opporKeyGroupId',
-      'delLockKeyId'
-    ]) raw.remove(k);
+      'delLockKeyId',
+    ])
+      raw.remove(k);
 
     return HXRecord1DeleteKeyModel(
       recordTime: recordTime,

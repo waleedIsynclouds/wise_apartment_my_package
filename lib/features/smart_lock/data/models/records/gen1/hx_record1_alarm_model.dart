@@ -42,8 +42,9 @@ class HXRecord1AlarmModel extends HXRecord1BaseModel {
       'power',
       'alarmType',
       'alarmLockKeyId',
-      'faultType'
-    ]) raw.remove(k);
+      'faultType',
+    ])
+      raw.remove(k);
 
     return HXRecord1AlarmModel(
       recordTime: recordTime,

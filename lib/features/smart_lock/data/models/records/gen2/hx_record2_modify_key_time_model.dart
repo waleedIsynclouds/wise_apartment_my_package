@@ -74,8 +74,9 @@ class HXRecord2ModifyKeyTimeModel extends HXRecord2BaseModel {
       'weeks',
       'dayStartTimes',
       'dayEndTimes',
-      'vaildNumber'
-    ]) raw.remove(k);
+      'vaildNumber',
+    ])
+      raw.remove(k);
 
     return HXRecord2ModifyKeyTimeModel(
       recordTime: recordTime,

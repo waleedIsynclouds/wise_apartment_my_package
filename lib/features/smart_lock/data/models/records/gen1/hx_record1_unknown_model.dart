@@ -28,8 +28,9 @@ class HXRecord1UnknownModel extends HXRecord1BaseModel {
       'logVersion',
       'modelType',
       'eventFlag',
-      'power'
-    ]) raw.remove(k);
+      'power',
+    ])
+      raw.remove(k);
 
     return HXRecord1UnknownModel(
       recordTime: recordTime,

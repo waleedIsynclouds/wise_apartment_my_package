@@ -58,8 +58,9 @@ class HXRecord2DeleteKeyModel extends HXRecord2BaseModel {
       'keyType',
       'keyLen',
       'key',
-      'keyGroupId'
-    ]) raw.remove(k);
+      'keyGroupId',
+    ])
+      raw.remove(k);
 
     return HXRecord2DeleteKeyModel(
       recordTime: recordTime,
