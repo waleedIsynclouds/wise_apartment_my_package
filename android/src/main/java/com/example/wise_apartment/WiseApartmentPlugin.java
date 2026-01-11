@@ -29,6 +29,7 @@ import com.example.wise_apartment.utils.BleLockManager;
 import com.example.wise_apartment.utils.BleScanManager;
 import com.example.wise_apartment.utils.DeviceInfoManager;
 import com.example.wise_apartment.utils.LockRecordManager;
+import com.example.wise_apartment.utils.OneShotResult;
 import com.example.wise_apartment.utils.PluginUtils;
 
 /**
@@ -143,79 +144,83 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
     Log.v(TAG, "MethodCall: " + call.method);
+    // Wrap the incoming Result so we only ever reply once and always on
+    // the main thread. Use `safeResult` for all replies below.
+    final Result safeResult = new OneShotResult(result, TAG);
+
     // Ensure initialization for all methods that depend on the BLE SDK.
     String _method = call.method;
     if (!"getPlatformVersion".equals(_method) && !"initBleClient".equals(_method)) {
-      if (!ensureInitialized(result)) {
+      if (!ensureInitialized(safeResult)) {
         return; // ensureInitialized already sent an error to Flutter
       }
     }
 
     switch (_method) {
       case "getPlatformVersion":
-        result.success("Android " + android.os.Build.VERSION.RELEASE);
+        safeResult.success("Android " + android.os.Build.VERSION.RELEASE);
         break;
       case "getDeviceInfo":
         if (deviceInfoManager != null) {
-          deviceInfoManager.getDeviceInfo(result);
+          deviceInfoManager.getDeviceInfo(safeResult);
         } else {
-          result.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
+          safeResult.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
         }
         break;
       case "getAndroidBuildConfig":
         if (deviceInfoManager != null) {
-          deviceInfoManager.getAndroidBuildConfig(result);
+          deviceInfoManager.getAndroidBuildConfig(safeResult);
         } else {
-          result.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
+          safeResult.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
         }
         break;
       case "initBleClient":
         initClient(); // Ensure client is ready
-        result.success(true);
+        safeResult.success(true);
         break;
       case "startScan":
         if (!checkPermissions()) {
-             result.error("PERMISSION_DENIED", "Missing Location or Bluetooth permissions", null);
+             safeResult.error("PERMISSION_DENIED", "Missing Location or Bluetooth permissions", null);
              return;
         }
         if (scanManager != null) {
           Integer timeout = call.argument("timeoutMs");
-          scanManager.startScan(timeout, result);
+          scanManager.startScan(timeout, safeResult);
         } else {
-          result.error("INIT_ERROR", "Scan manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Scan manager not initialized", null);
         }
         break;
       case "stopScan":
         if (scanManager != null) {
-          scanManager.stopScan(result);
+          scanManager.stopScan(safeResult);
         } else {
-          result.error("INIT_ERROR", "Scan manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Scan manager not initialized", null);
         }
         break;
       case "openLock":
         if (!checkPermissions()) {
-             result.error("PERMISSION_DENIED", "Missing permissions", null);
+             safeResult.error("PERMISSION_DENIED", "Missing permissions", null);
              return;
         }
         if (lockManager != null) {
-          lockManager.openLock((Map<String, Object>) call.arguments, result);
+          lockManager.openLock((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "closeLock":
         if (lockManager != null) {
-          lockManager.closeLock((Map<String, Object>) call.arguments, result);
+          lockManager.closeLock((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "disconnect":
         if (bleClient != null) {
           bleClient.disConnectBle(null);
-          result.success(true);
+          safeResult.success(true);
         } else {
-          result.error("INIT_ERROR", "BLE client not initialized", null);
+          safeResult.error("INIT_ERROR", "BLE client not initialized", null);
         }
         break;
       case "disconnectBle":
@@ -224,21 +229,20 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
             bleClient.disConnectBle(new FunCallback() {
               @Override
               public void onResponse(Response response) {
-                result.success(true);
+                safeResult.success(true);
               }
 
               @Override
               public void onFailure(Throwable t) {
-                result.error("ERROR", t.getMessage(), null);
+                safeResult.error("ERROR", t.getMessage(), null);
               }
             });
           } catch (Throwable t) {
             // Fallback to immediate disconnect if callback variant fails
-            try { bleClient.disConnectBle(null); } catch (Throwable ignored) {}
-            result.success(true);
+            safeResult.error("ERROR", "disconnectBle failed: " + t.getMessage(), null);
           }
         } else {
-          result.error("INIT_ERROR", "BLE client not initialized", null);
+          safeResult.error("INIT_ERROR", "BLE client not initialized", null);
         }
         break;
       case "connectBle":
@@ -250,101 +254,101 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
               @Override
               public void onResponse(Response response) {
                 if (response != null && response.isSuccessful()) {
-                  result.success(true);
+                  safeResult.success(true);
                 } else {
                   try {
                     Map<String, Object> details = new java.util.HashMap<>();
                     if (response != null) details.put("code", response.code());
                     details.put("ackMessage", com.example.wise_apartment.utils.WiseStatusCode.description(response == null ? -1 : response.code()));
-                    result.error("FAILED", "Code: " + (response == null ? "-1" : response.code()), details);
+                    safeResult.error("FAILED", "Code: " + (response == null ? "-1" : response.code()), details);
                   } catch (Throwable t) {
-                    result.error("FAILED", "Connect failed", null);
+                    safeResult.error("FAILED", "Connect failed", null);
                   }
                 }
               }
 
               @Override
               public void onFailure(Throwable t) {
-                result.error("ERROR", t.getMessage(), null);
+                safeResult.error("ERROR", t.getMessage(), null);
               }
             });
           } catch (Throwable t) {
             Log.e(TAG, "connectBle invocation failed", t);
-            result.error("ERROR", "connectBle invocation failed: " + t.getMessage(), null);
+            safeResult.error("ERROR", "connectBle invocation failed: " + t.getMessage(), null);
           }
         } else {
-          result.error("INIT_ERROR", "BLE client not initialized", null);
+          safeResult.error("INIT_ERROR", "BLE client not initialized", null);
         }
         break;
       case "clearSdkState":
-        handleClearSdkState(result);
+        handleClearSdkState(safeResult);
         break;
       case "getNBIoTInfo":
         if (deviceInfoManager != null) {
-          deviceInfoManager.getNBIoTInfo((Map<String, Object>) call.arguments, result);
+          deviceInfoManager.getNBIoTInfo((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
+          safeResult.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
         }
         break;
       case "getCat1Info":
         if (deviceInfoManager != null) {
-          deviceInfoManager.getCat1Info((Map<String, Object>) call.arguments, result);
+          deviceInfoManager.getCat1Info((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
+          safeResult.error("INIT_ERROR", "DeviceInfoManager not initialized", null);
         }
         break;
       case "setKeyExpirationAlarmTime":
         if (lockManager != null) {
-          lockManager.setKeyExpirationAlarmTime((Map<String, Object>) call.arguments, result);
+          lockManager.setKeyExpirationAlarmTime((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "syncLockRecords":
         if (recordManager != null) {
-          recordManager.syncLockRecords((Map<String, Object>) call.arguments, result);
+          recordManager.syncLockRecords((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Record manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Record manager not initialized", null);
         }
         break;
       case "syncLockRecordsPage":
         if (recordManager != null) {
-          recordManager.syncLockRecordsPage((Map<String, Object>) call.arguments, result);
+          recordManager.syncLockRecordsPage((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Record manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Record manager not initialized", null);
         }
         break;
       case "deleteLock":
         if (lockManager != null) {
-          lockManager.deleteLock((Map<String, Object>) call.arguments, result);
+          lockManager.deleteLock((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "getDna":
         if (lockManager != null) {
-          lockManager.getDna((Map<String, Object>) call.arguments, result);
+          lockManager.getDna((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "addDevice":
         // Orchestrated addDevice: add -> getSysParam -> pairSuccessInd
         if (lockManager != null) {
-          lockManager.addDevice((Map<String, Object>) call.arguments, result);
+          lockManager.addDevice((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       case "regWifi":
         if (lockManager != null) {
-          lockManager.registerWifi((Map<String, Object>) call.arguments, result);
+          lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
         } else {
-          result.error("INIT_ERROR", "Lock manager not initialized", null);
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
       default:
-        result.notImplemented();
+        safeResult.notImplemented();
         break;
     }
   }

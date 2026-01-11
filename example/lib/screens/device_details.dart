@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'sync_loc_records.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
@@ -112,7 +113,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         );
 
         if (!mounted) return;
-        // Ensure BLE disconnect before leaving this screen
+        // Ensure BLE disconnect before leaving this screen. Only attempt
+        // if runtime permissions are still granted (Android 12+ needs
+        // BLUETOOTH_CONNECT / BLUETOOTH_SCAN).
         try {
           await _plugin.disconnectBle();
         } catch (_) {}
@@ -175,6 +178,30 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         if (mounted) setState(() => _busy = false);
       }
     });
+  }
+
+  /// Ensure required BLE/runtime permissions are granted. Returns true
+  /// when permissions are available for connect/disconnect operations.
+  Future<bool> _ensureBlePermissions() async {
+    try {
+      final perms = <Permission>[
+        Permission.location,
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+      ];
+
+      for (final p in perms) {
+        final status = await p.status;
+        if (!status.isGranted) {
+          final req = await p.request();
+          if (!req.isGranted) return false;
+        }
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _registerWifi() async {
@@ -259,175 +286,189 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final mac = widget.device.mac ?? '';
     return Scaffold(
       appBar: AppBar(title: Text("Device Details")),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 8),
-            Center(child: Icon(Icons.lock, size: 120, color: Colors.green)),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(mac, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            if (_busy) const Center(child: CircularProgressIndicator()),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(onPressed: _openLock, child: const Text('Open')),
-                ElevatedButton(
-                  onPressed: _closeLock,
-                  child: const Text('Close'),
+      body: PopScope(
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) {
+            await _plugin.disconnectBle();
+          }
+        },
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              Center(child: Icon(Icons.lock, size: 120, color: Colors.green)),
+              const SizedBox(height: 8),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-                ElevatedButton(
-                  onPressed: _deleteLock,
-                  child: const Text('Delete'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: ElevatedButton(
-                onPressed: _openSyncLocRecords,
-                child: const Text('Sync Loc records'),
               ),
-            ),
-            const SizedBox(height: 12),
-            // Row(
-            //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-
-            //   children: [
-            //     ElevatedButton(
-            //       onPressed: _removeFromStorage,
-            //       child: const Text('Remove from app'),
-            //     ),
-            //   ],
-            // ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: Column(
+              const SizedBox(height: 4),
+              Text(mac, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              if (_busy) const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // WiFi SSID input
-                  TextField(
-                    controller: _form.ssidController,
-                    decoration: const InputDecoration(labelText: 'WiFi SSID'),
-                  ),
-                  const SizedBox(height: 8),
-                  // WiFi password input with show/hide toggle
-                  TextField(
-                    controller: _form.passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'WiFi Password',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _form.showPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () => setState(
-                          () => _form.showPassword = !_form.showPassword,
-                        ),
-                      ),
-                    ),
-                    obscureText: !_form.showPassword,
-                  ),
-                  const SizedBox(height: 8),
-                  // Configuration type dropdown (placed above Token ID)
-                  DropdownButtonFormField<WifiConfigurationType>(
-                    initialValue: _form.configurationType,
-                    items: const [
-                      DropdownMenuItem(
-                        value: WifiConfigurationType.serverOnly,
-                        child: Text('Server only'),
-                      ),
-                      DropdownMenuItem(
-                        value: WifiConfigurationType.wifiOnly,
-                        child: Text('WiFi only'),
-                      ),
-                      DropdownMenuItem(
-                        value: WifiConfigurationType.wifiAndServer,
-                        child: Text('WiFi and Server'),
-                      ),
-                    ],
-                    onChanged: (v) => setState(
-                      () => _form.configurationType =
-                          v ?? WifiConfigurationType.wifiOnly,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Configuration Type',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Only show Token ID and Server fields when not WiFi-only
-                  if (_form.configurationType !=
-                      WifiConfigurationType.wifiOnly) ...[
-                    // Token acquisition is handled automatically on Register.
-                    // Server address and port inputs
-                    TextField(
-                      controller: _form.serverAddressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Server Address',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _form.serverPortController,
-                      decoration: const InputDecoration(
-                        labelText: 'Server Port',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  // Update token dropdown
-                  DropdownButtonFormField<String>(
-                    initialValue: _form.updateTokenSelection,
-                    items: const [
-                      DropdownMenuItem(
-                        value: '01',
-                        child: Text('Update token'),
-                      ),
-                      DropdownMenuItem(
-                        value: '02',
-                        child: Text('Do not update'),
-                      ),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _form.updateTokenSelection = v ?? '02'),
-                    decoration: const InputDecoration(
-                      labelText: 'Update Token',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Server and port default to http://34.166.141.220:8090',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: _registerWifi,
-                    child: const Text('Register WiFi'),
+                    onPressed: _openLock,
+                    child: const Text('Open'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _closeLock,
+                    child: const Text('Close'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _deleteLock,
+                    child: const Text('Delete'),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton(
+                  onPressed: _openSyncLocRecords,
+                  child: const Text('Sync Loc records'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Row(
+              //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
 
-            // const SizedBox(height: 24),
-          ],
+              //   children: [
+              //     ElevatedButton(
+              //       onPressed: _removeFromStorage,
+              //       child: const Text('Remove from app'),
+              //     ),
+              //   ],
+              // ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Column(
+                  children: [
+                    // WiFi SSID input
+                    TextField(
+                      controller: _form.ssidController,
+                      decoration: const InputDecoration(labelText: 'WiFi SSID'),
+                    ),
+                    const SizedBox(height: 8),
+                    // WiFi password input with show/hide toggle
+                    TextField(
+                      controller: _form.passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'WiFi Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _form.showPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () => setState(
+                            () => _form.showPassword = !_form.showPassword,
+                          ),
+                        ),
+                      ),
+                      obscureText: !_form.showPassword,
+                    ),
+                    const SizedBox(height: 8),
+                    // Configuration type dropdown (placed above Token ID)
+                    DropdownButtonFormField<WifiConfigurationType>(
+                      initialValue: _form.configurationType,
+                      items: const [
+                        DropdownMenuItem(
+                          value: WifiConfigurationType.serverOnly,
+                          child: Text('Server only'),
+                        ),
+                        DropdownMenuItem(
+                          value: WifiConfigurationType.wifiOnly,
+                          child: Text('WiFi only'),
+                        ),
+                        DropdownMenuItem(
+                          value: WifiConfigurationType.wifiAndServer,
+                          child: Text('WiFi and Server'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(
+                        () => _form.configurationType =
+                            v ?? WifiConfigurationType.wifiOnly,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Configuration Type',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Only show Token ID and Server fields when not WiFi-only
+                    if (_form.configurationType !=
+                        WifiConfigurationType.wifiOnly) ...[
+                      // Token acquisition is handled automatically on Register.
+                      // Server address and port inputs
+                      TextField(
+                        controller: _form.serverAddressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Server Address',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _form.serverPortController,
+                        decoration: const InputDecoration(
+                          labelText: 'Server Port',
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    // Update token dropdown
+                    DropdownButtonFormField<String>(
+                      initialValue: _form.updateTokenSelection,
+                      items: const [
+                        DropdownMenuItem(
+                          value: '01',
+                          child: Text('Update token'),
+                        ),
+                        DropdownMenuItem(
+                          value: '02',
+                          child: Text('Do not update'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(
+                        () => _form.updateTokenSelection = v ?? '02',
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Update Token',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Server and port default to http://34.166.141.220:8090',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _registerWifi,
+                      child: const Text('Register WiFi'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -435,12 +476,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
   @override
   void dispose() {
-    // Best-effort disconnect; dispose must not be async so we fire-and-forget.
-    try {
-      _plugin.disconnectBle().catchError((_) {});
-    } catch (_) {}
-
-    // Clean up controllers in the centralized form state
     _form.dispose();
     super.dispose();
   }

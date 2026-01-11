@@ -8,7 +8,7 @@ import 'screens/device_details.dart';
 import 'src/secure_storage.dart';
 
 void main() {
-  runApp(const MaterialApp(home: MyApp()));
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: MyApp()));
 }
 
 class MyApp extends StatefulWidget {
