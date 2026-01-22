@@ -8,7 +8,6 @@ import 'sync_loc_records.dart';
 import 'sync_keys_screen.dart';
 import 'dna_info_screen.dart';
 import 'add_lock_key_screen.dart';
-import 'package:wise_apartment/src/models/keys/add_lock_key_action_model.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
