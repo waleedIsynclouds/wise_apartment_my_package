@@ -142,7 +142,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  /// Ensure required permissions and services (Bluetooth, Location) are enabled on app start.
+  /// Ensure required permissions and services (Bluetooth,  Location) are enabled on app start.
   Future<void> _ensurePermissionsAndServices() async {
     try {
       // Request runtime permissions.
