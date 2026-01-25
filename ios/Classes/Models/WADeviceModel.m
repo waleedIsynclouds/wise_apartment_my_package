@@ -38,6 +38,7 @@
 + (instancetype)deviceFromPeripheral:(CBPeripheral *)peripheral
                    advertisementData:(NSDictionary *)advertisementData
                                 RSSI:(NSNumber *)rssi {
+    NSLog(@"[WADeviceModel] Creating device model from peripheral: %@", peripheral.identifier.UUIDString);
     
     WADeviceModel *device = [[WADeviceModel alloc] init];
     
@@ -45,10 +46,13 @@
     device.name = peripheral.name ?: advertisementData[CBAdvertisementDataLocalNameKey] ?: @"Unknown Device";
     device.rssi = rssi;
     
+    NSLog(@"[WADeviceModel] Device info - ID: %@, Name: %@, RSSI: %@", device.deviceId, device.name, rssi);
+    
     // Extract manufacturer data
     NSData *manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey];
     if (manufacturerData) {
         device.manufacturerData = [manufacturerData base64EncodedStringWithOptions:0];
+        NSLog(@"[WADeviceModel] Manufacturer data found: %lu bytes", (unsigned long)manufacturerData.length);
     }
     
     // Build advertisement data dictionary
@@ -66,9 +70,11 @@
             [uuidStrings addObject:uuid.UUIDString];
         }
         adData[@"serviceUUIDs"] = uuidStrings;
+        NSLog(@"[WADeviceModel] Found %lu service UUIDs", (unsigned long)serviceUUIDs.count);
     }
     device.advertisementData = [adData copy];
     
+    NSLog(@"[WADeviceModel] Device model created successfully");
     return device;
 }
 

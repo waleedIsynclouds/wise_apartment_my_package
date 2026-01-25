@@ -17,6 +17,8 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		AA1234567890ABCD12345678 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB1234567890ABCD12345678 /* CoreBluetooth.framework */; };
+		AA1234567890ABCD12345679 /* HXJBLESDK.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB1234567890ABCD12345679 /* HXJBLESDK.framework */; };
+		AA1234567890ABCD1234567A /* HXJBLESDK.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB1234567890ABCD12345679 /* HXJBLESDK.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +38,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				AA1234567890ABCD1234567A /* HXJBLESDK.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -64,6 +67,7 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BB1234567890ABCD12345678 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		BB1234567890ABCD12345679 /* HXJBLESDK.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HXJBLESDK.framework; path = ../../ios/Frameworks/HXJBLESDK.framework; sourceTree = "<group>"; };
 		E6B94DF7195217E461E84DA1 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		E8EEE438AD73BD1F40A98535 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		F35FFC9A351C3A3EA6C5820A /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +79,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA1234567890ABCD12345678 /* CoreBluetooth.framework in Frameworks */,
+				AA1234567890ABCD12345679 /* HXJBLESDK.framework in Frameworks */,
 				1A23FAF659D8FED39D87E565 /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -163,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				BB1234567890ABCD12345678 /* CoreBluetooth.framework */,
+				BB1234567890ABCD12345679 /* HXJBLESDK.framework */,
 				F35FFC9A351C3A3EA6C5820A /* Pods_Runner.framework */,
 				5DCAC7C877BA7CF2C7628DA1 /* Pods_RunnerTests.framework */,
 			);

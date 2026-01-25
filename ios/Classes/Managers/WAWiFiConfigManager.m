@@ -28,6 +28,7 @@
 @implementation WAWiFiConfigManager
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[WAWiFiConfigManager] Initializing WiFi config manager");
     self = [super init];
     if (self) {
         _eventEmitter = eventEmitter;
@@ -35,6 +36,7 @@
         // TODO: Initialize SDK WiFi config helper
         // _wifiConfigHelper = [[HXWiFiConfigHelper alloc] init];
         // _wifiConfigHelper.delegate = self;
+        NSLog(@"[WAWiFiConfigManager] WiFi config manager initialized successfully");
     }
     return self;
 }
@@ -51,8 +53,10 @@
                       wifiType:(NSInteger)wifiType
                        timeout:(NSTimeInterval)timeout
                     completion:(WAWiFiConfigCompletion)completion {
+    NSLog(@"[WAWiFiConfigManager] configureWifi called - deviceId: %@, ssid: %@, wifiType: %ld, timeout: %.1fs", deviceId, ssid, (long)wifiType, timeout);
     
     if (self.isConfiguringWiFi) {
+        NSLog(@"[WAWiFiConfigManager] WiFi configuration already in progress");
         if (completion) {
             NSError *error = [WAErrorHandler errorWithCode:WAErrorCodeWiFiConfigFailed
                                                    message:@"WiFi configuration already in progress"];
@@ -63,6 +67,7 @@
     
     // Validate SSID
     if (!ssid || [ssid length] == 0) {
+        NSLog(@"[WAWiFiConfigManager] Invalid SSID provided");
         if (completion) {
             NSError *error = [WAErrorHandler errorWithCode:WAErrorCodeInvalidSSID
                                                    message:@"SSID cannot be empty"];
@@ -71,6 +76,7 @@
         return;
     }
     
+    NSLog(@"[WAWiFiConfigManager] Starting WiFi configuration");
     self.isConfiguringWiFi = YES;
     self.currentCompletion = completion;
     
@@ -96,10 +102,13 @@
 }
 
 - (void)cancelConfiguration {
+    NSLog(@"[WAWiFiConfigManager] cancelConfiguration called");
     if (!self.isConfiguringWiFi) {
+        NSLog(@"[WAWiFiConfigManager] No configuration in progress to cancel");
         return;
     }
     
+    NSLog(@"[WAWiFiConfigManager] Cancelling WiFi configuration");
     // TODO: Cancel SDK WiFi config operation
     // [self.wifiConfigHelper cancelConfiguration];
     
@@ -137,6 +146,7 @@
 }
 
 - (void)handleConfigSuccess:(NSString *)deviceId {
+    NSLog(@"[WAWiFiConfigManager] WiFi configuration successful for device: %@", deviceId);
     self.isConfiguringWiFi = NO;
     
     [self.configTimeoutTimer invalidate];
@@ -154,6 +164,7 @@
 }
 
 - (void)handleConfigFailure:(NSError *)error {
+    NSLog(@"[WAWiFiConfigManager] WiFi configuration failed: %@", error.localizedDescription);
     self.isConfiguringWiFi = NO;
     
     [self.configTimeoutTimer invalidate];

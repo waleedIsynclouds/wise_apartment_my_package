@@ -3,6 +3,7 @@ import 'package:wise_apartment/wise_apartment.dart';
 // ignore_for_file: dead_code, unnecessary_null_aware_operator, unused_import, unused_field, unused_element
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:io' show Platform;
 import 'screens/add_device.dart';
 import 'screens/device_details.dart';
 import 'src/secure_storage.dart';
@@ -43,13 +44,18 @@ class _MyAppState extends State<MyApp> {
     // Minimal BLE init helper: check permissions and bluetooth adapter state
     try {
       final perms = <Permission>[];
-      // Add common permissions; on older Android some are ignored
-      perms.addAll([
-        Permission.location,
-        Permission.bluetooth,
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-      ]);
+      
+      if (Platform.isAndroid) {
+        // Android 12+ (API 31+) requires new Bluetooth permissions
+        perms.addAll([
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+          Permission.locationWhenInUse,
+        ]);
+      } else if (Platform.isIOS) {
+        // iOS only needs location permission for BLE scanning
+        perms.add(Permission.locationWhenInUse);
+      }
 
       bool allGranted = true;
       for (final p in perms) {
@@ -145,52 +151,118 @@ class _MyAppState extends State<MyApp> {
   /// Ensure required permissions and services (Bluetooth,  Location) are enabled on app start.
   Future<void> _ensurePermissionsAndServices() async {
     try {
-      // Request runtime permissions.
-      final perms = <Permission>[
-        Permission.location,
-        Permission.bluetooth,
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-      ];
+      // Platform-specific permissions
+      final perms = <Permission>[];
+      
+      if (Platform.isAndroid) {
+        // Android 12+ (API 31+) requires new Bluetooth permissions
+        perms.addAll([
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+          Permission.locationWhenInUse, // Required for BLE scanning
+        ]);
+      } else if (Platform.isIOS) {
+        // iOS only needs location permission for BLE scanning
+        // Bluetooth permission is handled automatically by iOS
+        perms.add(Permission.locationWhenInUse);
+      }
 
-      bool allGranted = true;
+      final deniedPermissions = <String>[];
+      
       for (final p in perms) {
         final status = await p.status;
+        _addLog('Checking ${p.toString()}: ${status.toString()}');
+        
         if (!status.isGranted) {
+          _addLog('Permission ${p.toString()} not granted, requesting...');
           final req = await p.request();
           if (!req.isGranted) {
-            allGranted = false;
-            break;
+            final permName = p.toString().replaceAll('Permission.', '');
+            deniedPermissions.add(permName);
+            _addLog('Permission $permName was denied (status: ${req.toString()})');
+          } else {
+            _addLog('Permission ${p.toString()} granted');
           }
+        } else {
+          _addLog('Permission ${p.toString()} already granted');
         }
       }
 
-      if (!allGranted) {
+      if (deniedPermissions.isNotEmpty) {
         if (!mounted) return;
-        final retry = await showDialog<bool>(
+        final permList = deniedPermissions.join(', ');
+        _addLog('Missing permissions: $permList');
+        
+        final platformName = Platform.isAndroid ? 'Android' : 'iOS';
+        final String settingsPath;
+        final String explanation;
+        
+        if (Platform.isAndroid) {
+          settingsPath = 'Settings → Apps → Wise Apartment → Permissions';
+          explanation = 'Enable all required permissions:';
+        } else {
+          // iOS specific - Bluetooth is automatic, only Location needs manual enabling
+          settingsPath = 'Settings → Wise Apartment → Location → While Using the App';
+          explanation = 'iOS requires Location access for Bluetooth scanning.\n\n'
+              'Note: Bluetooth permission is automatically granted when you use the app - no manual setup needed.';
+        }
+        
+        final action = await showDialog<String>(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Text('Permissions required'),
-            content: const Text(
-              'This app requires Bluetooth and Location permissions to function. Open app settings to enable them, or retry.',
+            title: const Text('Permissions Required'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    explanation,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'To enable on $platformName:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    settingsPath,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Then return to this app.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Open Settings'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
+                onPressed: () => Navigator.of(ctx).pop('retry'),
                 child: const Text('Retry'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop('settings'),
+                child: const Text('Open Settings'),
               ),
             ],
           ),
         );
-        if (retry == true) {
+        
+        if (action == 'settings') {
+          await openAppSettings();
+          // Give user time to enable permissions before retrying
+          await Future.delayed(const Duration(milliseconds: 500));
           await _ensurePermissionsAndServices();
-        } else {
-          openAppSettings();
+        } else if (action == 'retry') {
+          await _ensurePermissionsAndServices();
         }
         return;
       }
@@ -206,30 +278,57 @@ class _MyAppState extends State<MyApp> {
         final newState = await FlutterBluePlus.adapterState.first;
         if (newState == BluetoothAdapterState.off) {
           if (!mounted) return;
-          final retry = await showDialog<bool>(
+          final platformName = Platform.isAndroid ? 'Android' : 'iOS';
+          final settingsPath = Platform.isAndroid
+              ? 'Swipe down → Tap Bluetooth icon\nor\nSettings → Connected devices → Bluetooth'
+              : 'Settings → Bluetooth → Toggle ON';
+          
+          final action = await showDialog<String>(
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              title: const Text('Enable Bluetooth'),
-              content: const Text(
-                'Bluetooth is disabled. Please enable Bluetooth in system settings and retry.',
+              title: const Text('Bluetooth Disabled'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Bluetooth is currently turned off. This app requires Bluetooth to connect to smart lock devices.',
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'To enable Bluetooth on $platformName:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    settingsPath,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Open Settings'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
+                  onPressed: () => Navigator.of(ctx).pop('retry'),
                   child: const Text('Retry'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop('settings'),
+                  child: const Text('Open Settings'),
                 ),
               ],
             ),
           );
-          if (retry == true) {
+          
+          if (action == 'settings') {
+            await openAppSettings();
+            await Future.delayed(const Duration(milliseconds: 500));
             await _ensurePermissionsAndServices();
-          } else {
-            openAppSettings();
+          } else if (action == 'retry') {
+            await _ensurePermissionsAndServices();
           }
           return;
         }
@@ -239,30 +338,57 @@ class _MyAppState extends State<MyApp> {
       final serviceStatus = await Permission.location.serviceStatus;
       if (serviceStatus != ServiceStatus.enabled) {
         if (!mounted) return;
-        final retry = await showDialog<bool>(
+        final platformName = Platform.isAndroid ? 'Android' : 'iOS';
+        final settingsPath = Platform.isAndroid
+            ? 'Settings → Location → Use Location (Toggle ON)'
+            : 'Settings → Privacy & Security → Location Services (Toggle ON)';
+        
+        final action = await showDialog<String>(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Text('Enable Location Services'),
-            content: const Text(
-              'Location services are disabled. Please enable location services and retry.',
+            title: const Text('Location Services Disabled'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Location services are currently disabled. On $platformName, Bluetooth scanning requires Location services to be enabled.',
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'To enable Location Services on $platformName:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  settingsPath,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Open Settings'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
+                onPressed: () => Navigator.of(ctx).pop('retry'),
                 child: const Text('Retry'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop('settings'),
+                child: const Text('Open Settings'),
               ),
             ],
           ),
         );
-        if (retry == true) {
+        
+        if (action == 'settings') {
+          await openAppSettings();
+          await Future.delayed(const Duration(milliseconds: 500));
           await _ensurePermissionsAndServices();
-        } else {
-          openAppSettings();
+        } else if (action == 'retry') {
+          await _ensurePermissionsAndServices();
         }
         return;
       }

@@ -19,6 +19,7 @@
 @implementation WABluetoothStateManager
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[WABluetoothStateManager] Initializing Bluetooth state manager");
     self = [super init];
     if (self) {
         _eventEmitter = eventEmitter;
@@ -28,6 +29,7 @@
         dispatch_queue_t queue = dispatch_queue_create("com.wiseapartment.bluetooth_state", DISPATCH_QUEUE_SERIAL);
         _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:queue];
         _currentState = CBManagerStateUnknown;
+        NSLog(@"[WABluetoothStateManager] Bluetooth state manager initialized");
     }
     return self;
 }
@@ -35,11 +37,15 @@
 #pragma mark - Public Methods
 
 - (BOOL)isBluetoothAvailable {
-    return self.currentState != CBManagerStateUnsupported;
+    BOOL available = self.currentState != CBManagerStateUnsupported;
+    NSLog(@"[WABluetoothStateManager] isBluetoothAvailable: %d (state: %@)", available, [self getCurrentStateString]);
+    return available;
 }
 
 - (BOOL)isBluetoothPoweredOn {
-    return self.currentState == CBManagerStatePoweredOn;
+    BOOL poweredOn = self.currentState == CBManagerStatePoweredOn;
+    NSLog(@"[WABluetoothStateManager] isBluetoothPoweredOn: %d (state: %@)", poweredOn, [self getCurrentStateString]);
+    return poweredOn;
 }
 
 - (NSString *)getCurrentStateString {

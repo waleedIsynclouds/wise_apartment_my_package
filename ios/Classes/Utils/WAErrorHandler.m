@@ -14,6 +14,7 @@ static NSString *const kWAErrorDomain = @"com.wiseapartment.error";
 + (FlutterError *)flutterErrorWithCode:(WAErrorCode)code
                                message:(NSString *)message
                                details:(id)details {
+    NSLog(@"[WAErrorHandler] Creating Flutter error - code: %ld, message: %@", (long)code, message);
     NSString *codeString = [NSString stringWithFormat:@"%ld", (long)code];
     return [FlutterError errorWithCode:codeString
                                message:message ?: [self messageForErrorCode:code]
@@ -21,6 +22,7 @@ static NSString *const kWAErrorDomain = @"com.wiseapartment.error";
 }
 
 + (FlutterError *)flutterErrorFromNSError:(NSError *)error {
+    NSLog(@"[WAErrorHandler] Converting NSError to Flutter error: %@", error);
     if (!error) {
         return [self flutterErrorWithCode:WAErrorCodeUnknown message:@"Unknown error" details:nil];
     }
@@ -49,6 +51,7 @@ static NSString *const kWAErrorDomain = @"com.wiseapartment.error";
 }
 
 + (NSError *)errorWithCode:(WAErrorCode)code message:(NSString *)message {
+    NSLog(@"[WAErrorHandler] Creating NSError - code: %ld, message: %@", (long)code, message);
     NSDictionary *userInfo = @{
         NSLocalizedDescriptionKey: message ?: [self messageForErrorCode:code]
     };

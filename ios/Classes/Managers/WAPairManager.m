@@ -28,6 +28,7 @@
 @implementation WAPairManager
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[WAPairManager] Initializing pair manager");
     self = [super init];
     if (self) {
         _eventEmitter = eventEmitter;
@@ -35,6 +36,7 @@
         // TODO: Initialize SDK pairing helper
         // _pairHelper = [[HXAddBluetoothLockHelper alloc] init];
         // _pairHelper.delegate = self;
+        NSLog(@"[WAPairManager] Pair manager initialized successfully");
     }
     return self;
 }
@@ -49,8 +51,10 @@
                authToken:(NSString *)authToken
               deviceName:(NSString *)deviceName
               completion:(WAPairCompletion)completion {
+    NSLog(@"[WAPairManager] pairDevice called - deviceId: %@, deviceName: %@", deviceId, deviceName);
     
     if (self.isPairingInProgress) {
+        NSLog(@"[WAPairManager] Pairing already in progress");
         if (completion) {
             NSError *error = [WAErrorHandler errorWithCode:WAErrorCodePairingFailed
                                                    message:@"A pairing operation is already in progress"];
@@ -62,6 +66,7 @@
     self.isPairingInProgress = YES;
     self.currentCompletion = completion;
     
+    NSLog(@"[WAPairManager] Starting pairing process");
     // Emit initial progress
     [self emitPairingProgress:@"initializing" message:@"Starting pairing process" percent:0];
     
@@ -83,10 +88,13 @@
 }
 
 - (void)cancelPairing {
+    NSLog(@"[WAPairManager] cancelPairing called");
     if (!self.isPairingInProgress) {
+        NSLog(@"[WAPairManager] No pairing in progress to cancel");
         return;
     }
     
+    NSLog(@"[WAPairManager] Cancelling pairing operation");
     // TODO: Cancel SDK pairing operation
     // [self.pairHelper cancelPairing];
     
@@ -125,6 +133,7 @@
 }
 
 - (void)handlePairingSuccess:(NSDictionary *)deviceInfo {
+    NSLog(@"[WAPairManager] Pairing successful: %@", deviceInfo);
     self.isPairingInProgress = NO;
     
     [self.eventEmitter emitEvent:@{
@@ -140,6 +149,7 @@
 }
 
 - (void)handlePairingFailure:(NSError *)error {
+    NSLog(@"[WAPairManager] Pairing failed: %@", error.localizedDescription);
     self.isPairingInProgress = NO;
     
     WAErrorCode errorCode = (error && [error.domain isEqualToString:@"com.wiseapartment.error"])

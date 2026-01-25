@@ -236,20 +236,40 @@ Add the following to `ios/Runner/Info.plist`:
 
 ```xml
 <dict>
-    <!-- Bluetooth usage descriptions (required) -->
+    <!-- Bluetooth usage descriptions (required for iOS 13+) -->
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>This app uses Bluetooth to communicate with smart locks.</string>
+    <string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
     
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>This app uses Bluetooth to communicate with smart locks.</string>
+    <string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
     
-    <!-- Optional: Enable background BLE -->
+    <key>NSBluetoothWhileUsingUsageDescription</key>
+    <string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
+    
+    <!-- Location permissions (required for BLE scanning on iOS) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Location access is required for Bluetooth scanning on iOS. Your location is not tracked or stored.</string>
+    
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Location access is required for Bluetooth scanning on iOS. Your location is not tracked or stored.</string>
+    
+    <!-- Local network access (for WiFi configuration features) -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>This app needs local network access to configure WiFi settings on smart lock devices.</string>
+    
+    <!-- Background BLE mode (optional, for background operations) -->
     <key>UIBackgroundModes</key>
     <array>
         <string>bluetooth-central</string>
     </array>
 </dict>
 ```
+
+**Required Permissions Explained:**
+- **NSBluetooth*** - Required for Bluetooth Low Energy (BLE) operations
+- **NSLocation*** - iOS requires location permission for BLE scanning (Apple privacy policy)
+- **NSLocalNetworkUsageDescription** - Required for WiFi configuration features
+- **UIBackgroundModes** - Optional, enables BLE operations in background
 
 #### 2. Minimum iOS Version
 

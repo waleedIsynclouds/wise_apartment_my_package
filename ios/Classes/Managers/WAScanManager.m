@@ -30,6 +30,7 @@
 @implementation WAScanManager
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[WAScanManager] Initializing scan manager");
     self = [super init];
     if (self) {
         _eventEmitter = eventEmitter;
@@ -39,6 +40,7 @@
         // TODO: Initialize SDK scan helper if needed
         // _sdkScanHelper = [[HXScanAllDevicesHelper alloc] init];
         // _sdkScanHelper.delegate = self;
+        NSLog(@"[WAScanManager] Scan manager initialized successfully");
     }
     return self;
 }
@@ -52,8 +54,10 @@
 - (BOOL)startScanWithTimeout:(NSTimeInterval)timeout
              allowDuplicates:(BOOL)allowDuplicates
                        error:(NSError **)error {
+    NSLog(@"[WAScanManager] startScan called - timeout: %.1fs, allowDuplicates: %d", timeout, allowDuplicates);
     
     if (self.isCurrentlyScanning) {
+        NSLog(@"[WAScanManager] Scan already in progress");
         if (error) {
             *error = [WAErrorHandler errorWithCode:WAErrorCodeScanAlreadyRunning
                                            message:nil];
@@ -63,6 +67,7 @@
     
     // Check Bluetooth state
     if (self.centralManager.state != CBManagerStatePoweredOn) {
+        NSLog(@"[WAScanManager] Bluetooth is not powered on, state: %ld", (long)self.centralManager.state);
         if (error) {
             *error = [WAErrorHandler errorWithCode:WAErrorCodeBluetoothOff
                                            message:@"Bluetooth must be powered on to scan"];
@@ -83,6 +88,8 @@
     // Example: @[[CBUUID UUIDWithString:@"YOUR-SERVICE-UUID"]]
     [self.centralManager scanForPeripheralsWithServices:nil options:options];
     
+    NSLog(@"[WAScanManager] CoreBluetooth scan started");
+    
     // === OPTION 2: Using SDK scan helper (uncomment when SDK is available) ===
     // TODO: Call SDK scan method
     // [self.sdkScanHelper startScanWithTimeout:timeout];
@@ -94,27 +101,34 @@
         @"type": @"scanState",
         @"state": @"started"
     }];
+    NSLog(@"[WAScanManager] Scan state event emitted: started");
     
     // Setup timeout if specified
     if (timeout > 0) {
+        NSLog(@"[WAScanManager] Setting scan timeout timer for %.1fs", timeout);
         __weak typeof(self) weakSelf = self;
         self.scanTimeoutTimer = [NSTimer scheduledTimerWithTimeInterval:timeout
                                                                 repeats:NO
                                                                   block:^(NSTimer *timer) {
+            NSLog(@"[WAScanManager] Scan timeout reached");
             __strong typeof(weakSelf) strongSelf = weakSelf;
             [strongSelf stopScan];
         }];
     }
     
+    NSLog(@"[WAScanManager] Scan started successfully");
     return YES;
 }
 
 - (void)stopScan {
+    NSLog(@"[WAScanManager] stopScan called");
     if (!self.isCurrentlyScanning) {
+        NSLog(@"[WAScanManager] No scan in progress, nothing to stop");
         return;
     }
     
     [self.centralManager stopScan];
+    NSLog(@"[WAScanManager] CoreBluetooth scan stopped");
     
     // TODO: Stop SDK scan helper if used
     // [self.sdkScanHelper stopScan];
@@ -127,6 +141,7 @@
         @"type": @"scanState",
         @"state": @"stopped"
     }];
+    NSLog(@"[WAScanManager] Scan stopped, event emitted");
 }
 
 - (BOOL)isScanning {
@@ -166,6 +181,8 @@
         return; // Skip duplicate
     }
     
+    NSLog(@"[WAScanManager] Discovered device: %@ (ID: %@, RSSI: %@)", deviceName, deviceId, RSSI);
+    
     self.discoveredDevices[deviceId] = peripheral;
     
     // Build device payload matching Android format
@@ -191,6 +208,7 @@
     devicePayload[@"advertisementData"] = adData;
     
     // Emit scan result event
+    NSLog(@"[WAScanManager] Emitting scan result for device: %@", deviceName);
     [self.eventEmitter emitEvent:@{
         @"type": @"scanResult",
         @"device": devicePayload
