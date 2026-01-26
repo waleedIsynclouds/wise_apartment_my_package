@@ -6,7 +6,8 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <CoreBluetooth/CoreBluetooth.h>
+
+#import <HXJBLESDK/SHAdvertisementModel.h>
 
 @class WAEventEmitter;
 
@@ -36,6 +37,12 @@ NS_ASSUME_NONNULL_BEGIN
  * Check if scan is currently running
  */
 - (BOOL)isScanning;
+
+/// Snapshot of discovered devices, formatted for Flutter.
+- (NSArray<NSDictionary *> *)snapshotDiscoveredDevices;
+
+/// Returns the last seen advertisement for a lock MAC (lower/upper tolerated).
+- (nullable SHAdvertisementModel *)advertisementForMac:(NSString *)mac;
 
 @end
 

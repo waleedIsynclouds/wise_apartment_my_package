@@ -3,27 +3,26 @@
 //  wise_apartment
 //
 //  BLE scanning implementation
+// Change log statements to use your preferred logging framework
 //
 
 #import "WAScanManager.h"
 #import "WAEventEmitter.h"
 #import "WAErrorHandler.h"
 
-// TODO: Import your actual SDK headers
-// #import <HXJBLESDK/HXScanAllDevicesHelper.h>
-// #import <HXJBLESDK/HXScanAllDevicesHelperDelegate.h>
+#import <HXJBLESDK/HXScanAllDevicesHelper.h>
 
-@interface WAScanManager () <CBCentralManagerDelegate>
+static NSString *const kWAUnknownDeviceName = @"Unknown Device";
+
+@interface WAScanManager () <HXScanAllDevicesHelperDelegate>
 
 @property (nonatomic, weak) WAEventEmitter *eventEmitter;
-@property (nonatomic, strong) CBCentralManager *centralManager;
 @property (nonatomic, strong) NSTimer *scanTimeoutTimer;
 @property (nonatomic, assign) BOOL isCurrentlyScanning;
 @property (nonatomic, assign) BOOL allowDuplicates;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, CBPeripheral *> *discoveredDevices;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, SHAdvertisementModel *> *discoveredAdvertisements;
 
-// TODO: Replace with actual SDK helper
-// @property (nonatomic, strong) HXScanAllDevicesHelper *sdkScanHelper;
+@property (nonatomic, strong) HXScanAllDevicesHelper *scanHelper;
 
 @end
 
@@ -34,12 +33,10 @@
     self = [super init];
     if (self) {
         _eventEmitter = eventEmitter;
-        _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil];
-        _discoveredDevices = [NSMutableDictionary dictionary];
-        
-        // TODO: Initialize SDK scan helper if needed
-        // _sdkScanHelper = [[HXScanAllDevicesHelper alloc] init];
-        // _sdkScanHelper.delegate = self;
+        _discoveredAdvertisements = [NSMutableDictionary dictionary];
+        _scanHelper = [[HXScanAllDevicesHelper alloc] initWithDelegate:self];
+        _scanHelper.bleStatePoweredOnAutoScan = YES;
+        _scanHelper.startClearOldData = YES;
         NSLog(@"[WAScanManager] Scan manager initialized successfully");
     }
     return self;
@@ -65,34 +62,12 @@
         return NO;
     }
     
-    // Check Bluetooth state
-    if (self.centralManager.state != CBManagerStatePoweredOn) {
-        NSLog(@"[WAScanManager] Bluetooth is not powered on, state: %ld", (long)self.centralManager.state);
-        if (error) {
-            *error = [WAErrorHandler errorWithCode:WAErrorCodeBluetoothOff
-                                           message:@"Bluetooth must be powered on to scan"];
-        }
-        return NO;
-    }
-    
     self.allowDuplicates = allowDuplicates;
-    [self.discoveredDevices removeAllObjects];
-    
-    // === OPTION 1: Using CoreBluetooth directly ===
-    // Scan for all peripherals (or filter by service UUIDs if known)
-    NSDictionary *options = @{
-        CBCentralManagerScanOptionAllowDuplicatesKey: @(allowDuplicates)
-    };
-    
-    // TODO: Replace nil with specific service UUIDs if known
-    // Example: @[[CBUUID UUIDWithString:@"YOUR-SERVICE-UUID"]]
-    [self.centralManager scanForPeripheralsWithServices:nil options:options];
-    
-    NSLog(@"[WAScanManager] CoreBluetooth scan started");
-    
-    // === OPTION 2: Using SDK scan helper (uncomment when SDK is available) ===
-    // TODO: Call SDK scan method
-    // [self.sdkScanHelper startScanWithTimeout:timeout];
+    [self.discoveredAdvertisements removeAllObjects];
+
+    self.scanHelper.startClearOldData = YES;
+    [self.scanHelper startScanForDevices];
+    NSLog(@"[WAScanManager] HXJBLESDK scan started");
     
     self.isCurrentlyScanning = YES;
     
@@ -126,12 +101,9 @@
         NSLog(@"[WAScanManager] No scan in progress, nothing to stop");
         return;
     }
-    
-    [self.centralManager stopScan];
-    NSLog(@"[WAScanManager] CoreBluetooth scan stopped");
-    
-    // TODO: Stop SDK scan helper if used
-    // [self.sdkScanHelper stopScan];
+
+    [self.scanHelper stopScan];
+    NSLog(@"[WAScanManager] HXJBLESDK scan stopped");
     
     [self.scanTimeoutTimer invalidate];
     self.scanTimeoutTimer = nil;
@@ -148,98 +120,81 @@
     return self.isCurrentlyScanning;
 }
 
-#pragma mark - CBCentralManagerDelegate
+- (NSArray<NSDictionary *> *)snapshotDiscoveredDevices {
+    NSMutableArray<NSDictionary *> *out = [NSMutableArray arrayWithCapacity:self.discoveredAdvertisements.count];
+    for (NSString *mac in self.discoveredAdvertisements) {
+        SHAdvertisementModel *ad = self.discoveredAdvertisements[mac];
+        if (!ad) continue;
+        NSString *name = (ad.name.length > 0) ? ad.name : kWAUnknownDeviceName;
+        NSNumber *rssi = ad.RSSI ?: @0;
+        [out addObject:@{
+            @"deviceId": mac,
+            @"mac": mac,
+            @"name": name,
+            @"rssi": rssi,
+            @"chipType": @(ad.chipType),
+            @"lockType": @(ad.lockType),
+            @"advertisementData": @{},
+        }];
+    }
+    return out;
+}
 
-- (void)centralManagerDidUpdateState:(CBCentralManager *)central {
-    NSLog(@"[WAScanManager] Bluetooth state: %ld", (long)central.state);
-    
-    // If scanning and BT turns off, stop scan
-    if (central.state != CBManagerStatePoweredOn && self.isCurrentlyScanning) {
-        [self stopScan];
+- (nullable SHAdvertisementModel *)advertisementForMac:(NSString *)mac {
+    if (mac.length == 0) return nil;
+    NSString *key = [mac lowercaseString];
+    return self.discoveredAdvertisements[key];
+}
+
+
+#pragma mark - HXScanAllDevicesHelperDelegate
+
+- (void)didDiscoverDeviceAdvertisement:(NSArray<SHAdvertisementModel *> *)advertisements {
+    for (SHAdvertisementModel *ad in advertisements) {
+        NSString *mac = (ad.mac.length > 0) ? [ad.mac lowercaseString] : nil;
+        if (mac.length == 0) continue;
+
+        if (!self.allowDuplicates && self.discoveredAdvertisements[mac] != nil) {
+            continue;
+        }
+
+        self.discoveredAdvertisements[mac] = ad;
+        NSString *name = (ad.name.length > 0) ? ad.name : kWAUnknownDeviceName;
+        NSNumber *rssi = ad.RSSI ?: @0;
+
+        NSDictionary *devicePayload = @{
+            @"deviceId": mac,
+            @"mac": mac,
+            @"name": name,
+            @"rssi": rssi,
+            @"chipType": @(ad.chipType),
+            @"lockType": @(ad.lockType),
+            @"advertisementData": @{},
+        };
+
         [self.eventEmitter emitEvent:@{
-            @"type": @"scanState",
-            @"state": @"stopped",
-            @"reason": @"bluetooth_off"
+            @"type": @"scanResult",
+            @"device": devicePayload
         }];
     }
 }
 
-- (void)centralManager:(CBCentralManager *)central
- didDiscoverPeripheral:(CBPeripheral *)peripheral
-     advertisementData:(NSDictionary<NSString *,id> *)advertisementData
-                  RSSI:(NSNumber *)RSSI {
-    
-    // Filter out unnamed devices (optional)
-    NSString *deviceName = peripheral.name ?: advertisementData[CBAdvertisementDataLocalNameKey];
-    if (!deviceName || [deviceName length] == 0) {
-        deviceName = @"Unknown Device";
+- (void)didFailToScanDevices:(KSHStatusCode)statusCode reason:(NSString *)reason {
+    NSLog(@"[WAScanManager] HXJBLESDK scan failed: %ld %@", (long)statusCode, reason);
+
+    if (statusCode == KSHStatusCode_BluetoothStateUnavailable || statusCode == KSHStatusCode_BluetoothStateDenied) {
+        [self.eventEmitter emitEvent:@{
+            @"type": @"scanState",
+            @"state": @"stopped",
+            @"reason": @"bluetooth_unavailable",
+        }];
     }
-    
-    // Check for duplicates (if not allowed)
-    NSString *deviceId = peripheral.identifier.UUIDString;
-    if (!self.allowDuplicates && self.discoveredDevices[deviceId]) {
-        return; // Skip duplicate
-    }
-    
-    NSLog(@"[WAScanManager] Discovered device: %@ (ID: %@, RSSI: %@)", deviceName, deviceId, RSSI);
-    
-    self.discoveredDevices[deviceId] = peripheral;
-    
-    // Build device payload matching Android format
-    NSMutableDictionary *devicePayload = [NSMutableDictionary dictionary];
-    devicePayload[@"deviceId"] = deviceId;
-    devicePayload[@"name"] = deviceName;
-    devicePayload[@"rssi"] = RSSI;
-    
-    // Extract manufacturer data (if present)
-    NSData *manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey];
-    if (manufacturerData) {
-        devicePayload[@"manufacturerData"] = [manufacturerData base64EncodedStringWithOptions:0];
-    }
-    
-    // Advertisement data
-    NSMutableDictionary *adData = [NSMutableDictionary dictionary];
-    if (advertisementData[CBAdvertisementDataLocalNameKey]) {
-        adData[@"localName"] = advertisementData[CBAdvertisementDataLocalNameKey];
-    }
-    if (advertisementData[CBAdvertisementDataTxPowerLevelKey]) {
-        adData[@"txPowerLevel"] = advertisementData[CBAdvertisementDataTxPowerLevelKey];
-    }
-    devicePayload[@"advertisementData"] = adData;
-    
-    // Emit scan result event
-    NSLog(@"[WAScanManager] Emitting scan result for device: %@", deviceName);
+
     [self.eventEmitter emitEvent:@{
-        @"type": @"scanResult",
-        @"device": devicePayload
+        @"type": @"scanError",
+        @"code": @((NSInteger)statusCode),
+        @"message": reason ?: @"Scan failed"
     }];
 }
-
-#pragma mark - SDK Delegate (TODO: Implement if using SDK helper)
-
-// TODO: Implement HXScanAllDevicesHelperDelegate methods
-/*
-- (void)scanHelper:(HXScanAllDevicesHelper *)helper didDiscoverDevice:(HXDeviceModel *)device {
-    // Convert SDK device model to Flutter-compatible dictionary
-    NSDictionary *devicePayload = @{
-        @"deviceId": device.macAddress ?: device.uuid,
-        @"name": device.name,
-        @"rssi": @(device.rssi),
-        @"manufacturerData": device.manufacturerData ? [device.manufacturerData base64EncodedStringWithOptions:0] : @"",
-        @"advertisementData": @{
-            @"localName": device.localName ?: @"",
-        }
-    };
-    
-    [self.eventEmitter emitEvent:@{
-        @"type": @"scanResult",
-        @"device": devicePayload
-    }];
-}
-
-- (void)scanHelperDidStopScan:(HXScanAllDevicesHelper *)helper {
-    [self stopScan];
-}
-*/
 
 @end

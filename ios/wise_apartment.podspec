@@ -28,11 +28,5 @@ Flutter plugin providing BLE device scanning, pairing, and WiFi configuration fo
   # Place HXJBLESDK.framework in the ios/Frameworks/ directory
   s.vendored_frameworks = 'Frameworks/HXJBLESDK.framework'
   
-  # Framework search paths and linker flags
-  s.xcconfig = { 
-    'OTHER_LDFLAGS' => '-framework HXJBLESDK -framework CoreBluetooth',
-    'FRAMEWORK_SEARCH_PATHS' => '"$(PODS_ROOT)/../Frameworks"'
-  }
-  
   s.swift_version = '5.0'
 end
