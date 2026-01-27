@@ -11,6 +11,7 @@
 #import "WAErrorHandler.h"
 
 #import <HXJBLESDK/HXScanAllDevicesHelper.h>
+#import <HXJBLESDK/SHAdvertisementModel.h>
 
 static NSString *const kWAUnknownDeviceName = @"Unknown Device";
 

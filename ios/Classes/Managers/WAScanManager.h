@@ -7,7 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-#import <HXJBLESDK/SHAdvertisementModel.h>
+@class SHAdvertisementModel;
 
 @class WAEventEmitter;
 

@@ -48,7 +48,7 @@ SPEC CHECKSUMS:
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
-  wise_apartment: c47f88279c2a5f44f6aab5a52c778d66bc5fec95
+  wise_apartment: a0287925d6d50da2cc7cb79fb974f08b2573e0fa
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 

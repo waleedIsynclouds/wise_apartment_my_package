@@ -19,7 +19,12 @@ Flutter plugin providing BLE device scanning, pairing, and WiFi configuration fo
   s.platform = :ios, '12.0'
 
   # Flutter.framework does not contain a i386 slice.
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
+s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
+    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "${PODS_TARGET_SRCROOT}/Frameworks"',
+    'OTHER_LDFLAGS' => '$(inherited) -framework HXJBLESDK',
+  }
 
   # System frameworks required for BLE operations
   s.frameworks = 'CoreBluetooth', 'Foundation'

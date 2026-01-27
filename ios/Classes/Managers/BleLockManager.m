@@ -181,7 +181,7 @@
 
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
-
+    NSLog(@"[BleLockManager] addDevice called with args: %@", args);
     NSString *mac = [PluginUtils lockMacFromArgs:args];
     if (mac.length == 0) {
         [one error:@"ERROR" message:@"mac is required" details:nil];
