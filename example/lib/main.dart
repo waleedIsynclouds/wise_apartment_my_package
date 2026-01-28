@@ -8,6 +8,7 @@ import 'screens/add_device.dart';
 import 'screens/device_details.dart';
 import 'src/secure_storage.dart';
 
+
 void main() {
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: MyApp()));
 }

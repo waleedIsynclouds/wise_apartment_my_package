@@ -78,6 +78,64 @@
     return YES;
 }
 
+- (NSString *)ackMessageForCode:(NSInteger)code {
+    switch (code) {
+        case 0x01: return @"Operation successful";
+        case 0x02: return @"Password error";
+        case 0x03: return @"Remote unlocking not enabled";
+        case 0x04: return @"Parameter error";
+        case 0x05: return @"Operation prohibited (add administrator first)";
+        case 0x06: return @"Operation not supported by lock";
+        case 0x07: return @"Repeat adding (already exists)";
+        case 0x08: return @"Index/number error";
+        case 0x09: return @"Reverse locking not allowed";
+        case 0x0A: return @"System is locked";
+        case 0x0B: return @"Prohibit deleting administrators";
+        case 0x0E: return @"Storage full";
+        case 0x0F: return @"Follow-up data packets available";
+        case 0x10: return @"Door locked, cannot open/unlock";
+        case 0x11: return @"Exit and add key status";
+        case 0x23: return @"RF module busy";
+        case 0x2B: return @"Electronic lock engaged (unlock not allowed)";
+        case 0xE1: return @"Authentication failed";
+        case 0xE2: return @"Device busy, try again later";
+        case 0xE4: return @"Incorrect encryption type";
+        case 0xE5: return @"Session ID incorrect";
+        case 0xE6: return @"Device not in pairing mode";
+        case 0xE7: return @"Command not allowed";
+        case 0xE8: return @"Please add the device first (pairing error)";
+        case 0xEA: return @"Already has permission (pair repeat)";
+        case 0xEB: return @"Insufficient permissions";
+        case 0xEC: return @"Invalid command version / protocol mismatch";
+        case 0xFF00: return @"DNA key empty";
+        case 0xFF01: return @"Session ID empty";
+        case 0xFF02: return @"AES key empty";
+        case 0xFF03: return @"Authentication code empty";
+        case 0xFF04: return @"Scan/connection timeout";
+        case 0xFF05: return @"Bluetooth disconnected";
+        case 0xFF07: return @"Decryption failed";
+        default:
+            return [NSString stringWithFormat:@"Unknown status code: 0x%lX", (long)code];
+    }
+}
+
+- (NSDictionary *)responseMapWithCode:(NSInteger)code
+                              message:(NSString *)message
+                              lockMac:(NSString *)lockMac
+                                 body:(id)body {
+    NSMutableDictionary *response = [NSMutableDictionary dictionary];
+    
+    response[@"code"] = @(code);
+    response[@"message"] = message ?: @"";
+    response[@"ackMessage"] = [self ackMessageForCode:code];
+    response[@"isSuccessful"] = @(code == 0x01); // KSHStatusCode_Success = 1
+    response[@"isError"] = @(code != 0x01);
+    response[@"lockMac"] = lockMac ?: @"";
+    response[@"body"] = body ?: [NSNull null];
+    
+    return response;
+}
+
 #pragma mark - Public API (called from channel handler)
 
 - (void)openLock:(NSDictionary *)args result:(FlutterResult)result {
@@ -101,18 +159,24 @@
                                              int power,
                                              int unlockingDuration) {
             @try {
-                (void)macOut; (void)power; (void)unlockingDuration;
-                if (statusCode == KSHStatusCode_Success) {
-                    [one success:@YES];
-                } else {
-                    NSString *msg = [NSString stringWithFormat:@"Code: %ld - %@", (long)statusCode, reason ?: @""];
-                    [one error:@"FAILED" message:msg details:nil];
-                }
                 [self.bleClient disConnectBle:nil];
+                
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:macOut
+                                                               body:@{
+                    @"power": @(power),
+                    @"unlockingDuration": @(unlockingDuration)
+                }];
+                
+                if (statusCode == KSHStatusCode_Success) {
+                    [one success:response];
+                } else {
+                    [one error:@"FAILED" message:reason ?: @"Operation failed" details:response];
+                }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in openLock callback: %@", exception);
                 [one error:@"ERROR" message:exception.reason ?: @"Exception in openLock" details:nil];
-                [self.bleClient disConnectBle:nil];
             }
         }];
     } @catch (NSException *exception) {
@@ -139,12 +203,15 @@
                                                  NSString *reason,
                                                  NSString *macOut) {
             @try {
-                (void)macOut;
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:macOut
+                                                               body:nil];
+                
                 if (statusCode == KSHStatusCode_Success) {
-                    [one success:@YES];
+                    [one success:response];
                 } else {
-                    NSString *msg = [NSString stringWithFormat:@"Code: %ld - %@", (long)statusCode, reason ?: @""];
-                    [one error:@"FAILED" message:msg details:nil];
+                    [one error:@"FAILED" message:reason ?: @"Operation failed" details:response];
                 }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in closeLock callback: %@", exception);
@@ -182,11 +249,11 @@
             @try {
                 [self.bleClient disConnectBle:nil]; // Always disconnect
 
-                if (statusCode == KSHStatusCode_Success && deviceStatus != nil) {
-                    NSMutableDictionary *params = [NSMutableDictionary dictionary];
+                NSMutableDictionary *params = nil;
+                if (deviceStatus != nil) {
+                    params = [NSMutableDictionary dictionary];
                     params[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
                     params[@"lockMac"] = deviceStatus.lockMac ?: mac;
-
                     params[@"openMode"] = @(deviceStatus.openMode);
                     params[@"normallyOpenMode"] = @(deviceStatus.normallyOpenMode);
                     params[@"normallyopenFlag"] = @(deviceStatus.normallyopenFlag);
@@ -199,25 +266,27 @@
                     params[@"antiLockStatues"] = @(deviceStatus.antiLockStatues);
                     params[@"lockCoverAlarmEnable"] = @(deviceStatus.lockCoverAlarmEnable);
                     params[@"lockCoverSwitchStatus"] = @(deviceStatus.lockCoverSwitchStatus);
-
                     params[@"systemTimeTimestamp"] = @(deviceStatus.systemTimeTimestamp);
                     params[@"timezoneOffset"] = @(deviceStatus.timezoneOffset);
                     params[@"systemVolume"] = @(deviceStatus.systemVolume);
                     params[@"power"] = @(deviceStatus.power);
                     params[@"lowPowerUnlockTimes"] = @(deviceStatus.lowPowerUnlockTimes);
-
                     params[@"enableKeyType"] = @(deviceStatus.enableKeyType);
                     params[@"squareTongueStatues"] = @(deviceStatus.squareTongueStatues);
                     params[@"obliqueTongueStatues"] = @(deviceStatus.obliqueTongueStatues);
                     params[@"systemLanguage"] = @(deviceStatus.systemLanguage);
-
-                    // Not available in HXBLEDeviceStatus (kept for Android parity)
                     params[@"menuFeature"] = @"";
-
-                    [one success:params];
+                }
+                
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:mac
+                                                               body:params];
+                
+                if (statusCode == KSHStatusCode_Success) {
+                    [one success:response];
                 } else {
-                    NSString *msg = [NSString stringWithFormat:@"Code: %ld - %@", (long)statusCode, reason ?: @""];
-                    [one error:@"FAILED" message:msg details:nil];
+                    [one error:@"FAILED" message:reason ?: @"Operation failed" details:response];
                 }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in getSysParam callback: %@", exception);
@@ -268,15 +337,19 @@
         [HXBluetoothLockHelper deleteDeviceWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
             @try {
                 [self.bleClient disConnectBle:nil];
+                
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:mac
+                                                               body:nil];
+                
                 if (statusCode == KSHStatusCode_Success) {
-                    [one success:@YES];
+                    [one success:response];
                 } else {
-                    NSString *msg = [NSString stringWithFormat:@"Code: %ld - %@", (long)statusCode, reason ?: @""];
-                    [one error:@"FAILED" message:msg details:nil];
+                    [one error:@"FAILED" message:reason ?: @"Operation failed" details:response];
                 }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in deleteLock callback: %@", exception);
-                [self.bleClient disConnectBle:nil];
                 [one error:@"ERROR" message:exception.reason ?: @"Exception in deleteLock" details:nil];
             }
         }];
@@ -301,12 +374,20 @@
     @try {
         [HXBluetoothLockHelper getDNAInfoWithLockMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason, HXBLEDeviceBase *deviceBase) {
             @try {
-                (void)reason; (void)deviceBase;
+                id body = nil;
+                if (statusCode == KSHStatusCode_Success && deviceBase != nil) {
+                    body = @{ @"mac": deviceBase.rfModuleMac ?: mac };
+                }
+                
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:mac
+                                                               body:body];
+                
                 if (statusCode == KSHStatusCode_Success) {
-                    [one success:@{ @"mac": mac ?: @"" }];
+                    [one success:response];
                 } else {
-                    NSString *msg = [NSString stringWithFormat:@"Code: %ld - %@", (long)statusCode, reason ?: @""];
-                    [one error:@"FAILED" message:msg details:nil];
+                    [one error:@"FAILED" message:reason ?: @"Operation failed" details:response];
                 }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in getDna callback: %@", exception);
@@ -373,28 +454,60 @@
                                                              HXBLEDevice *device,
                                                              HXBLEDeviceStatus *deviceStatus) {
             @try {
+                NSMutableDictionary *finalMap = [NSMutableDictionary dictionary];
+                
                 if (statusCode == KSHStatusCode_Success && device != nil && deviceStatus != nil) {
+                    // Build DNA info map
                     NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
                     dnaMap[@"mac"] = device.lockMac ?: mac;
                     dnaMap[@"authCode"] = device.adminAuthCode ?: @"";
                     dnaMap[@"dnaKey"] = device.aesKey ?: @"";
                     dnaMap[@"protocolVer"] = @(device.bleProtocolVersion);
-
                     dnaMap[@"deviceType"] = @(device.lockType);
                     dnaMap[@"hardwareVer"] = device.hardwareVersion ?: @"";
                     dnaMap[@"softwareVer"] = device.rfMoudleSoftwareVer ?: @"";
                     dnaMap[@"rFModuleType"] = @(device.rfModuleType);
                     dnaMap[@"rFModuleMac"] = device.rfModuleMac ?: @"";
-
                     dnaMap[@"deviceDnaInfoStr"] = device.deviceDnaInfoStr ?: @"";
                     dnaMap[@"keyGroupId"] = @900;
-
-                    [one success:dnaMap];
+                    
+                    // Build sysParam map
+                    NSMutableDictionary *sysParamMap = [NSMutableDictionary dictionary];
+                    if (deviceStatus != nil) {
+                        sysParamMap[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
+                        sysParamMap[@"lockMac"] = deviceStatus.lockMac ?: mac;
+                        sysParamMap[@"openMode"] = @(deviceStatus.openMode);
+                        sysParamMap[@"power"] = @(deviceStatus.power);
+                        sysParamMap[@"systemVolume"] = @(deviceStatus.systemVolume);
+                        sysParamMap[@"menuFeature"] = @"";
+                    }
+                    
+                    // Build response matching Android structure
+                    finalMap[@"ok"] = @YES;
+                    finalMap[@"stage"] = @"addDevice";
+                    finalMap[@"dnaInfo"] = dnaMap;
+                    finalMap[@"sysParam"] = sysParamMap;
+                    
+                    NSDictionary *addDeviceResp = [self responseMapWithCode:statusCode
+                                                                     message:reason
+                                                                     lockMac:mac
+                                                                        body:dnaMap];
+                    finalMap[@"responses"] = @{@"addDevice": addDeviceResp};
+                    
+                    [one success:finalMap];
                 } else {
-                    NSString *msg = [NSString stringWithFormat:@"addDevice failed: Code %ld - %@",
-                                     (long)statusCode,
-                                     reason ?: @"Unknown error"];
-                    [one error:@"FAILED" message:msg details:nil];
+                    finalMap[@"ok"] = @NO;
+                    finalMap[@"stage"] = @"addDevice";
+                    finalMap[@"dnaInfo"] = [NSNull null];
+                    finalMap[@"sysParam"] = [NSNull null];
+                    
+                    NSDictionary *addDeviceResp = [self responseMapWithCode:statusCode
+                                                                     message:reason
+                                                                     lockMac:mac
+                                                                        body:nil];
+                    finalMap[@"responses"] = @{@"addDevice": addDeviceResp};
+                    
+                    [one error:@"FAILED" message:reason ?: @"addDevice failed" details:finalMap];
                 }
             } @catch (NSException *exception) {
                 NSLog(@"[BleLockManager] Exception in addDevice callback: %@", exception);
