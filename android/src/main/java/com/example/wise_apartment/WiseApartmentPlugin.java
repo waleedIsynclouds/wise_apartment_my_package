@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.EventChannel;
 
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import android.bluetooth.BluetoothDevice;
@@ -38,6 +39,8 @@ import com.example.wise_apartment.utils.PluginUtils;
  */
 public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
   private MethodChannel channel;
+  private EventChannel eventChannel;
+  private EventChannel.EventSink eventSink;
   private Context context;
   private static final String PREF_NAME = "WiseApartmentPrefs";
   private static final String TAG = "WiseApartmentPlugin";
@@ -54,6 +57,23 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
     channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "wise_apartment/methods");
     channel.setMethodCallHandler(this);
+    
+    // Register EventChannel for streaming events
+    eventChannel = new EventChannel(flutterPluginBinding.getBinaryMessenger(), "wise_apartment/ble_events");
+    eventChannel.setStreamHandler(new EventChannel.StreamHandler() {
+      @Override
+      public void onListen(Object arguments, EventChannel.EventSink events) {
+        eventSink = events;
+        Log.d(TAG, "EventChannel listener attached");
+      }
+
+      @Override
+      public void onCancel(Object arguments) {
+        eventSink = null;
+        Log.d(TAG, "EventChannel listener cancelled");
+      }
+    });
+    
     context = flutterPluginBinding.getApplicationContext();
     initClient();
   }
@@ -356,7 +376,55 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case "syncLockKey":
         if (lockManager != null) {
-          lockManager.syncLockKey((Map<String, Object>) call.arguments, safeResult);
+          // Use streaming version if EventSink is available
+          if (eventSink != null) {
+            lockManager.syncLockKeyStream((Map<String, Object>) call.arguments, new BleLockManager.SyncLockKeyStreamCallback() {
+              @Override
+              public void onChunk(final Map<String, Object> chunkEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      eventSink.success(chunkEvent);
+                    }
+                  }
+                });
+              }
+
+              @Override
+              public void onDone(final Map<String, Object> doneEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      eventSink.success(doneEvent);
+                    }
+                  }
+                });
+              }
+
+              @Override
+              public void onError(final Map<String, Object> errorEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      eventSink.error(
+                        String.valueOf(errorEvent.get("code")),
+                        String.valueOf(errorEvent.get("message")),
+                        errorEvent
+                      );
+                    }
+                  }
+                });
+              }
+            });
+            // Return immediately - results come via EventChannel
+            safeResult.success(null);
+          } else {
+            // Fallback to old non-streaming version
+            lockManager.syncLockKey((Map<String, Object>) call.arguments, safeResult);
+          }
         } else {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }

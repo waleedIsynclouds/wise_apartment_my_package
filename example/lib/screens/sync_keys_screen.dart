@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,7 +20,12 @@ class SyncKeysScreen extends StatefulWidget {
 class _SyncKeysScreenState extends State<SyncKeysScreen> {
   final _plugin = WiseApartment();
   bool _loading = false;
-  HxjResponse<LockKeyResult?>? _result;
+  List<Map<String, dynamic>>? _syncedKeys;
+  StreamSubscription<Map<String, dynamic>>? _streamSubscription;
+  List<Map<String, dynamic>> _partialKeys = [];
+  int _chunksReceived = 0;
+  String _statusMessage = '';
+
   // Controllers and storage for Add Key bottom sheet
   final _keyTypeController = TextEditingController();
   final _keyLenController = TextEditingController();
@@ -39,7 +45,6 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
   final _dayEndController = TextEditingController();
   // KeyType options are not used in this screen; removed to avoid analyzer warnings.
   final _storage = const FlutterSecureStorage();
-  bool _adding = false;
   @override
   void initState() {
     super.initState();
@@ -50,6 +55,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
 
   @override
   void dispose() {
+    _streamSubscription?.cancel();
     _keyTypeController.dispose();
     _keyLenController.dispose();
     _keyController.dispose();
@@ -72,23 +78,113 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
 
   Future<void> _syncKeys() async {
     if (_loading) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _partialKeys = [];
+      _chunksReceived = 0;
+      _statusMessage = 'Starting sync...';
+      _syncedKeys = null;
+    });
+
+    // Cancel any existing subscription
+    await _streamSubscription?.cancel();
+
     try {
-      final res = await _plugin.syncLockKey(widget.auth);
-      if (!mounted) return;
-      setState(
-        () => _result = HxjResponse.fromMap(
-          res,
-          bodyParser: (body) {
-            return LockKeyResult.fromMap(
-              Map<String, dynamic>.from(body as Map<dynamic, dynamic>),
-            );
-          },
-        ),
+      // Listen to the stream for incremental updates
+      _streamSubscription = _plugin.syncLockKeyStream.listen(
+        (event) {
+          if (!mounted) return;
+
+          final type = event['type'] as String?;
+
+          if (type == 'syncLockKeyChunk') {
+            // Received a chunk (single key)
+            final item = event['item'] as Map<dynamic, dynamic>?;
+            final keyNum = event['keyNum'] as int? ?? 0;
+            final totalSoFar = event['totalSoFar'] as int? ?? 0;
+
+            if (item != null) {
+              final keyMap = Map<String, dynamic>.from(item);
+              setState(() {
+                _partialKeys.add(keyMap);
+                _chunksReceived++;
+                _statusMessage =
+                    'Received key #$keyNum ($totalSoFar keys so far)';
+              });
+            }
+          } else if (type == 'syncLockKeyDone') {
+            // Sync completed successfully
+            final items = event['items'] as List<dynamic>?;
+            final total = event['total'] as int? ?? 0;
+
+            if (items != null) {
+              final allKeys = items
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
+
+              setState(() {
+                _syncedKeys = allKeys;
+                _loading = false;
+                _statusMessage =
+                    'Sync completed: $total keys (BLE disconnected)';
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '✓ Sync completed: $total keys | BLE disconnected',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            }
+          } else if (type == 'syncLockKeyError') {
+            // Error occurred
+            final message = event['message'] as String? ?? 'Unknown error';
+            final code = event['code'];
+
+            setState(() {
+              _loading = false;
+              _statusMessage = 'Error: $message (Connection closed)';
+            });
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '✗ Sync error: $message (code: $code) | Connection closed',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+        onError: (error) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _statusMessage = 'Stream error: $error';
+          });
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Stream error: $error')));
+        },
+        onDone: () {
+          if (!mounted) return;
+          setState(() {
+            if (_loading) {
+              _loading = false;
+              _statusMessage = 'Stream closed';
+            }
+          });
+        },
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Sync keys completed')));
+
+      // Trigger the sync operation (results come via stream)
+      await _plugin.syncLockKey(widget.auth);
     } catch (e) {
       WiseStatusHandler? status;
       String? codeStr;
@@ -107,6 +203,10 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
         } catch (_) {}
       }
       if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _statusMessage = 'Error: ${msg ?? e}';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -114,8 +214,6 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
           ),
         ),
       );
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -196,138 +294,115 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
             const Text(
               'Press Sync to retrieve keys from the lock using the plugin.',
             ),
+            if (_loading || _statusMessage.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Card(
+                color: _loading ? Colors.blue.shade50 : Colors.grey.shade100,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (_loading)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _statusMessage,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_chunksReceived > 0) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Chunks received: $_chunksReceived | Keys so far: ${_partialKeys.length}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 12),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _result == null
-                  ? const Center(child: Text('No result yet'))
-                  : ListView.separated(
+              child: _syncedKeys == null
+                  ? const Center(child: Text('No keys yet'))
+                  : _syncedKeys!.isEmpty
+                  ? const Center(child: Text('No keys found'))
+                  : ListView.builder(
+                      itemCount: _syncedKeys!.length,
                       itemBuilder: (context, index) {
-                        final body = _result?.body;
-                        final pretty = body != null
-                            ? const JsonEncoder.withIndent(
-                                '  ',
-                              ).convert(body.toMap())
-                            : 'No body';
-                        return ListTile(
-                          onTap: () async {
-                            // show full details dialog with copy action
-                            if (!mounted) return;
-                            await showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Key Details'),
-                                content: SingleChildScrollView(
-                                  child: SelectableText(pretty),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () async {
-                                      try {
+                        final keyData = _syncedKeys![index];
+                        final pretty = const JsonEncoder.withIndent(
+                          '  ',
+                        ).convert(keyData);
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: ListTile(
+                            title: Text('Key ${index + 1}'),
+                            subtitle: Text(
+                              'Type: ${keyData['keyType'] ?? 'unknown'}, '
+                              'ID: ${keyData['lockKeyId'] ?? 'N/A'}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () async {
+                              await showDialog<void>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: Text('Key ${index + 1} Details'),
+                                  content: SingleChildScrollView(
+                                    child: SelectableText(pretty),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () async {
                                         await Clipboard.setData(
                                           ClipboardData(text: pretty),
                                         );
-                                        if (ctx.mounted) {
+                                        if (ctx.mounted)
                                           Navigator.of(ctx).pop();
-                                        }
                                         if (mounted) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
                                             const SnackBar(
-                                              content: Text('Copied'),
+                                              content: Text(
+                                                'Copied to clipboard',
+                                              ),
                                             ),
                                           );
                                         }
-                                      } catch (_) {
-                                        if (ctx.mounted) {
-                                          Navigator.of(ctx).pop();
-                                        }
-                                      }
-                                    },
-                                    child: const Text('Copy'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    child: const Text('Close'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          title: Container(
-                            padding: const EdgeInsets.all(8.0),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: Colors.white,
-                                  child: Text(body?.keyNum.toString() ?? '?'),
+                                      },
+                                      child: const Text('Copy'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.lock, size: 18),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                body?.keyID.toString() ??
-                                                    'unknown',
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.person,
-                                                size: 18,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                body?.appUserID.toString() ??
-                                                    'unknown',
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.timer, size: 18),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            DateTime.fromMillisecondsSinceEpoch(
-                                              body?.modifyTimestamp ?? 0,
-                                            ).toIso8601String(),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
                         );
                       },
-                      separatorBuilder: (context, index) => const Divider(),
-                      itemCount: 1,
                     ),
             ),
           ],

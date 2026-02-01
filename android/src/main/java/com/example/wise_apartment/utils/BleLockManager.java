@@ -24,10 +24,22 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleSetHotelLock
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleHotelLockSystemParam;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BleLockManager {
     private static final String TAG = "BleLockManager";
     private final HxjBleClient bleClient;
+
+    /**
+     * Callback interface for streaming syncLockKey events.
+     * Allows incremental updates to be sent to Flutter via EventChannel.
+     */
+    public interface SyncLockKeyStreamCallback {
+        void onChunk(Map<String, Object> chunkEvent);
+        void onDone(Map<String, Object> doneEvent);
+        void onError(Map<String, Object> errorEvent);
+    }
 
     // Helper: convert vendor Response<?> to stable Map<String,Object>
     private Map<String, Object> responseToMap(Response<?> response, Object bodyObj) {
@@ -915,6 +927,186 @@ public class BleLockManager {
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling syncLockKey", t);
             postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Streaming version of syncLockKey that emits incremental updates via callback.
+     * This method is designed for use with EventChannel to send partial results
+     * to Flutter as they arrive from the BLE SDK.
+     * 
+     * Note: Each onResponse callback receives ONE key (LockKeyResult represents a single key).
+     * 
+     * @param args Map containing baseAuth and optional lastSyncTimestamp
+     * @param callback Callback to receive chunk, done, and error events
+     */
+    public void syncLockKeyStream(Map<String, Object> args, final SyncLockKeyStreamCallback callback) {
+        Log.d(TAG, "syncLockKeyStream called with args: " + args);
+        
+        // List to accumulate all keys across responses
+        final List<Map<String, Object>> allKeys = new ArrayList<>();
+        
+        // Flag to track if stream has been closed
+        final boolean[] streamClosed = new boolean[]{false};
+        
+        try {
+            int lastSync = 2;
+            if (args != null && args.containsKey("lastSyncTimestamp")) {
+                Object v = args.get("lastSyncTimestamp");
+                if (v instanceof Integer) lastSync = (Integer) v;
+                else if (v instanceof Number) lastSync = ((Number) v).intValue();
+                else if (v instanceof String) {
+                    try { lastSync = Integer.parseInt((String) v); } catch (Exception ignored) {}
+                }
+            }
+
+            SyncLockKeyAction action = new SyncLockKeyAction(lastSync);
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            bleClient.syncLockKey(action, new FunCallback<LockKeyResult>() {
+                @Override
+                public void onResponse(Response<LockKeyResult> response) {
+                    try {
+                        Log.d(TAG, "onResponse called - code: " + response.code() + ", isSuccessful: " + response.isSuccessful() + ", streamClosed: " + streamClosed[0]);
+                        
+                        // Process any successful response (ACK_STATUS_NEXT or final success)
+                        if (response.code() == StatusCode.ACK_STATUS_NEXT || response.isSuccessful()) {
+                            LockKeyResult body = null;
+                            try { body = response.body(); } catch (Throwable ignored) {}
+                            
+                            if (body != null) {
+                                int keyNum = LockKeyResultMapper.getKeyNum(body);
+                                boolean isMore = true;
+                                try {
+                                    isMore = body.isMore();
+                                    Log.d(TAG, "Received key: keyNum=" + keyNum + ", isMore=" + isMore + ", totalSoFar=" + (allKeys.size() + 1));
+                                } catch (Throwable t) {
+                                    Log.e(TAG, "Error reading isMore flag", t);
+                                }
+                                
+                                if (keyNum != 0) {
+                                    // Convert single key to Map and add to accumulator
+                                    Map<String, Object> keyMap = LockKeyResultMapper.toMap(body);
+                                    allKeys.add(keyMap);
+                                    
+                                    // Emit chunk event with this single key
+                                    Map<String, Object> chunkEvent = new HashMap<>();
+                                    chunkEvent.put("type", "syncLockKeyChunk");
+                                    chunkEvent.put("item", keyMap);
+                                    chunkEvent.put("keyNum", keyNum);
+                                    chunkEvent.put("totalSoFar", allKeys.size());
+                                    chunkEvent.put("isMore", isMore);
+                                    callback.onChunk(chunkEvent);
+                                }
+                                
+                                // If isMore is false, this is the last key - close stream now
+                                if (!isMore) {
+                                    if (streamClosed[0]) {
+                                        Log.d(TAG, "isMore=false but stream already closed");
+                                        return;
+                                    }
+                                    streamClosed[0] = true;
+                                    
+                                    Log.d(TAG, "isMore=false detected - closing stream with " + allKeys.size() + " keys");
+                                    
+                                    // Emit done event immediately
+                                    Map<String, Object> doneEvent = new HashMap<>();
+                                    doneEvent.put("type", "syncLockKeyDone");
+                                    doneEvent.put("items", allKeys);
+                                    doneEvent.put("total", allKeys.size());
+                                    callback.onDone(doneEvent);
+                                    
+                                    // Safely disconnect BLE
+                                    try {
+                                        bleClient.disConnectBle(null);
+                                        Log.d(TAG, "BLE disconnected after isMore=false");
+                                    } catch (Throwable disconnectError) {
+                                        Log.e(TAG, "Error disconnecting BLE", disconnectError);
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                        // Error response (non-successful)
+                        else {
+                            if (streamClosed[0]) {
+                                Log.d(TAG, "Stream already closed, ignoring error response");
+                                return;
+                            }
+                            streamClosed[0] = true; // Mark stream as closed
+                            
+                            Log.d(TAG, "Error response - code: " + response.code());
+                            
+                            Map<String, Object> errorEvent = new HashMap<>();
+                            errorEvent.put("type", "syncLockKeyError");
+                            errorEvent.put("message", ackMessageForCode(response.code()));
+                            errorEvent.put("code", response.code());
+                            callback.onError(errorEvent);
+                            
+                            // Safely disconnect BLE after error
+                            try {
+                                bleClient.disConnectBle(null);
+                                Log.d(TAG, "BLE disconnected after error response");
+                            } catch (Throwable disconnectError) {
+                                Log.e(TAG, "Error disconnecting BLE after error response", disconnectError);
+                            }
+                        }
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Exception in syncLockKeyStream onResponse", t);
+                        
+                        if (!streamClosed[0]) { // Only emit error if stream not already closed
+                            streamClosed[0] = true; // Mark stream as closed
+                            
+                            Map<String, Object> errorEvent = new HashMap<>();
+                            errorEvent.put("type", "syncLockKeyError");
+                            errorEvent.put("message", "Internal error: " + t.getMessage());
+                            errorEvent.put("code", -1);
+                            callback.onError(errorEvent);
+                            
+                            // Safely disconnect BLE after exception
+                            try {
+                                bleClient.disConnectBle(null);
+                                Log.d(TAG, "BLE disconnected after exception");
+                            } catch (Throwable disconnectError) {
+                                Log.e(TAG, "Error disconnecting BLE after exception", disconnectError);
+                            }
+                        } else {
+                            Log.d(TAG, "Exception occurred but stream already closed, not emitting error");
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    if (streamClosed[0]) { // Don't emit if already closed
+                        Log.d(TAG, "Ignoring failure - stream already closed");
+                        return;
+                    }
+                    streamClosed[0] = true; // Mark stream as closed
+                    
+                    Log.e(TAG, "syncLockKeyStream failed", t);
+                    Map<String, Object> errorEvent = new HashMap<>();
+                    errorEvent.put("type", "syncLockKeyError");
+                    errorEvent.put("message", t.getMessage() != null ? t.getMessage() : "Unknown error");
+                    errorEvent.put("code", -1);
+                    callback.onError(errorEvent);
+                    
+                    // Safely disconnect BLE after failure
+                    try {
+                        bleClient.disConnectBle(null);
+                        Log.d(TAG, "BLE disconnected after failure");
+                    } catch (Throwable disconnectError) {
+                        Log.e(TAG, "Error disconnecting BLE after failure", disconnectError);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling syncLockKeyStream", t);
+            Map<String, Object> errorEvent = new HashMap<>();
+            errorEvent.put("type", "syncLockKeyError");
+            errorEvent.put("message", "Failed to start sync: " + (t.getMessage() != null ? t.getMessage() : "Unknown error"));
+            errorEvent.put("code", -1);
+            callback.onError(errorEvent);
         }
     }
 

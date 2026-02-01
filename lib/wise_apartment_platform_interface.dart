@@ -69,6 +69,10 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Synchronize keys on the lock. Accepts auth/DNA map and returns a Map
   /// describing the sync result or a list of keys inside the returned Map.
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth);
+
+  /// Stream of syncLockKey events (chunks, done, errors)
+  Stream<Map<String, dynamic>> get syncLockKeyStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
 
   /// Retrieve system parameters from the lock (SysParamResult).

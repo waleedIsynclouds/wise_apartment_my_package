@@ -22,7 +22,7 @@
 
 // Channel names (MUST match Flutter side exactly)
 static NSString *const kMethodChannelName = @"wise_apartment/methods";
-static NSString *const kEventChannelName = @"wise_apartment/events";
+static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
 @interface WiseApartmentPlugin ()
 
@@ -624,13 +624,23 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
         result(@{@"success": @NO});
         return;
     }
-    
-    NSLog(@"[WiseApartmentPlugin] Syncing lock keys");
-    // TODO: Call SDK syncLockKey
-    // Example: [[HXKeyManager shared] syncKeysWithAuth:auth completion:^(NSDictionary *result) { ... }];
-    
-    NSLog(@"[WiseApartmentPlugin] Lock keys synced successfully");
-    result(@{@"success": @YES, @"keys": @[]});
+
+    // Use streaming version if EventEmitter has active listener
+    if ([self.eventEmitter hasActiveListener]) {
+        NSLog(@"[WiseApartmentPlugin] Using streaming syncLockKey");
+        
+        // Create delegate wrapper to emit events via EventEmitter
+        __weak typeof(self) weakSelf = self;
+        id<SyncLockKeyStreamDelegate> streamDelegate = [[SyncLockKeyStreamDelegateImpl alloc] initWithEventEmitter:self.eventEmitter];
+        
+        [self.lockManager syncLockKeyStream:params delegate:streamDelegate];
+        
+        // Return immediately - results come via stream
+        result(nil);
+    } else {
+        NSLog(@"[WiseApartmentPlugin] Using non-streaming syncLockKey (no active listener)");
+        [self.lockManager synclockkeys:params result:result];
+    }
 }
 
 - (void)handleSyncLockTime:(id)args result:(FlutterResult)result {
@@ -679,6 +689,44 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
  */
 - (BOOL)prepare:(NSDictionary *)args {
     return [self wa_configureDeviceForAuth:args];
+}
+
+@end
+
+#pragma mark - SyncLockKeyStreamDelegate Implementation
+
+/**
+ * Concrete implementation of SyncLockKeyStreamDelegate that forwards events
+ * to the EventEmitter for delivery to Flutter via EventChannel.
+ */
+@interface SyncLockKeyStreamDelegateImpl : NSObject <SyncLockKeyStreamDelegate>
+@property (nonatomic, strong) WAEventEmitter *eventEmitter;
+- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter;
+@end
+
+@implementation SyncLockKeyStreamDelegateImpl
+
+- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    self = [super init];
+    if (self) {
+        _eventEmitter = eventEmitter;
+    }
+    return self;
+}
+
+- (void)onChunk:(NSDictionary *)chunkEvent {
+    NSLog(@"[SyncLockKeyStreamDelegate] onChunk called");
+    [self.eventEmitter emitEvent:chunkEvent];
+}
+
+- (void)onDone:(NSDictionary *)doneEvent {
+    NSLog(@"[SyncLockKeyStreamDelegate] onDone called");
+    [self.eventEmitter emitEvent:doneEvent];
+}
+
+- (void)onError:(NSDictionary *)errorEvent {
+    NSLog(@"[SyncLockKeyStreamDelegate] onError called");
+    [self.eventEmitter emitEvent:errorEvent];
 }
 
 @end

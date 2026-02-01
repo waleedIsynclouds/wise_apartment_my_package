@@ -111,20 +111,22 @@ class MockWiseApartmentPlatform
 
   @override
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
-    // TODO: implement syncLockKey
-    throw UnimplementedError();
+    return Future.value({});
+  }
+
+  @override
+  Stream<Map<String, dynamic>> get syncLockKeyStream {
+    return Stream.value({});
   }
 
   @override
   Future<bool> syncLockTime(Map<String, dynamic> auth) {
-    // TODO: implement syncLockTime
-    throw UnimplementedError();
+    return Future.value(true);
   }
 
   @override
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
-    // TODO: implement getSysParam
-    throw UnimplementedError();
+    return Future.value({});
   }
 }
 

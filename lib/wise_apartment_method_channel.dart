@@ -10,6 +10,22 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
   final methodChannel = const MethodChannel('wise_apartment/methods');
 
+  @visibleForTesting
+  final eventChannel = const EventChannel('wise_apartment/ble_events');
+
+  Stream<Map<String, dynamic>>? _syncLockKeyStream;
+
+  @override
+  Stream<Map<String, dynamic>> get syncLockKeyStream {
+    _syncLockKeyStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        return Map<String, dynamic>.from(event);
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _syncLockKeyStream!;
+  }
+
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
     final dynamic mac = auth['mac'];
     if (mac is String && mac.isNotEmpty) {
@@ -331,9 +347,12 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) async {
     try {
       final args = Map<String, dynamic>.from(auth);
-      final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('syncLockKey', args);
-      return result ?? <String, dynamic>{};
+      // Trigger the sync - actual results come via syncLockKeyStream
+      await methodChannel.invokeMethod<void>('syncLockKey', args);
+      // Return immediately - caller should listen to syncLockKeyStream
+      return <String, dynamic>{
+        'message': 'Sync started - listen to syncLockKeyStream for results',
+      };
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);
     }

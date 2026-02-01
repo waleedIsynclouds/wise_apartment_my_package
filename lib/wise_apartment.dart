@@ -136,6 +136,17 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.syncLockKey(auth);
   }
 
+  /// Stream of syncLockKey events containing incremental updates.
+  /// Each chunk event contains a single key (LockKeyResult represents one key).
+  ///
+  /// Event types:
+  /// - 'syncLockKeyChunk': { type, item (single key Map), keyNum, totalSoFar }
+  /// - 'syncLockKeyDone': { type, items (all keys List), total }
+  /// - 'syncLockKeyError': { type, message, code }
+  Stream<Map<String, dynamic>> get syncLockKeyStream {
+    return WiseApartmentPlatform.instance.syncLockKeyStream;
+  }
+
   /// Synchronize the lock's internal clock/time. Returns true on success.
   Future<bool> syncLockTime(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.syncLockTime(auth);
