@@ -51,11 +51,11 @@
 
 - (BOOL)configureLockFromArgs:(NSDictionary *)args error:(FlutterError * __autoreleasing *)errorOut {
     NSString *mac = [PluginUtils lockMacFromArgs:args];
-    NSString *aesKey = [PluginUtils stringArg:args key:@"dnaKey"];
+    NSString *aesKey = [PluginUtils stringArg:args key:@"dnaAes128Key"];
     if (aesKey.length == 0) {
-        aesKey = [PluginUtils stringArg:args key:@"aesKey"];
+        aesKey = [PluginUtils stringArg:args key:@"dnaAes128Key"];
     }
-    NSString *authCode = [PluginUtils stringArg:args key:@"authCode"];
+    NSString *authCode = [PluginUtils stringArg:args key:@"authorizedRoot"];
     int keyGroupId = [PluginUtils intFromArgs:args key:@"keyGroupId" defaultValue:900];
 
     // Android supports either `bleProtocolVer` or `protocolVer`.
@@ -76,12 +76,12 @@
         NSDictionary *cached = [self.bleClient authForMac:mac];
         if ([cached isKindOfClass:[NSDictionary class]]) {
             if (aesKey.length == 0) {
-                NSString *c = [PluginUtils stringArg:cached key:@"dnaKey"];
-                if (c.length == 0) c = [PluginUtils stringArg:cached key:@"aesKey"];
+                NSString *c = [PluginUtils stringArg:cached key:@"dnaAes128Key"];
+                if (c.length == 0) c = [PluginUtils stringArg:cached key:@"dnaAes128Key"];
                 aesKey = c ?: @"";
             }
             if (authCode.length == 0) {
-                NSString *c = [PluginUtils stringArg:cached key:@"authCode"];
+                NSString *c = [PluginUtils stringArg:cached key:@"authorizedRoot"];
                 authCode = c ?: @"";
             }
             // Prefer cached protocolVer/keyGroupId when caller didn't supply them.
@@ -104,7 +104,7 @@
     }
 
     if (authCode.length == 0) {
-        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"authCode is required (call addDevice first on iOS, or provide dnaKey/authCode)" details:nil];
+        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"authorizedRoot is required (call addDevice first on iOS, or provide dnaKey/authCode)" details:nil];
         return NO;
     }
 
@@ -857,7 +857,7 @@ static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
                     // DNA INFO (match Android keys)
                     // -------------------------
                     NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
-
+                    NSLog(@"[BleLockManager] Building DNA info ]");
                     // Some SDKs expose a dna object; fallback to device if not found
                     id dnaObj = HXSafeKVC(device, @"dna")
                              ?: HXSafeKVC(device, @"deviceDnaInfo")
@@ -941,7 +941,9 @@ static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
                           HXSafeKVC(dnaObj, @"deviceDnaInfoStr") ?: (device.deviceDnaInfoStr ?: @""));
 
                     // Keep your extra auth fields (optional but useful for iOS caching)
-                    HXPut(dnaMap, @"authCode", device.adminAuthCode ?: @"");
+                    HXPut(dnaMap, @"authorizedRoot", device.adminAuthCode ?: @"");
+                    HXPut(dnaMap, @"authorizedUser", device.generalAuthCode  ?: @"");
+                    HXPut(dnaMap, @"authorizedTempUser",device.tempAuthCode ?:@"" );
                     HXPut(dnaMap, @"dnaKey", device.aesKey ?: @"");
                     HXPut(dnaMap, @"keyGroupId", @900);
 

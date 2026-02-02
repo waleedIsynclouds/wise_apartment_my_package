@@ -491,8 +491,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         resolved = cached;
     }
 
-    NSString *authCode = resolved[@"authCode"];
-    NSString *dnaKey = resolved[@"dnaKey"] ?: resolved[@"aesKey"];
+    NSString *authCode = resolved[@"authorizedRoot"];
+    NSString *dnaKey = resolved[@"dnaAes128Key"] ?: resolved[@"aesKey"];
     NSNumber *keyGroupId = resolved[@"keyGroupId"];
     NSNumber *bleProtocolVer = resolved[@"bleProtocolVer"] ?: resolved[@"bleProtocolVersion"] ?: resolved[@"protocolVer"];
 
