@@ -197,6 +197,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
         }
         if (dna is Map) {
           toSave = Map<String, dynamic>.from(dna);
+          
           toSave['name'] = device.name ?? '';
         } else {
           toSave = device.toMap();

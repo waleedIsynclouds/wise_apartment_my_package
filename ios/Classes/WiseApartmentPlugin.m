@@ -720,9 +720,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
  * Concrete implementation of SyncLockKeyStreamDelegate that forwards events
  * to the EventEmitter for delivery to Flutter via EventChannel.
  */
-@implementation SyncLockKeyStreamDelegateImpl
-
-@property (nonatomic, strong) WAEventEmitter *eventEmitter;
+@implementation SyncLockKeyStreamDelegateImpl {
+    WAEventEmitter *_eventEmitter;
+}
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
     self = [super init];
@@ -734,17 +734,17 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
 - (void)onChunk:(NSDictionary *)chunkEvent {
     NSLog(@"[SyncLockKeyStreamDelegate] onChunk called");
-    [self.eventEmitter emitEvent:chunkEvent];
+    [_eventEmitter emitEvent:chunkEvent];
 }
 
 - (void)onDone:(NSDictionary *)doneEvent {
     NSLog(@"[SyncLockKeyStreamDelegate] onDone called");
-    [self.eventEmitter emitEvent:doneEvent];
+    [_eventEmitter emitEvent:doneEvent];
 }
 
 - (void)onError:(NSDictionary *)errorEvent {
     NSLog(@"[SyncLockKeyStreamDelegate] onError called");
-    [self.eventEmitter emitEvent:errorEvent];
+    [_eventEmitter emitEvent:errorEvent];
 }
 
 @end

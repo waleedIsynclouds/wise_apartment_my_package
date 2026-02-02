@@ -182,6 +182,11 @@
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"openLock" one:one]) return;
 
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
         [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
@@ -229,6 +234,11 @@
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"closeLock" one:one]) return;
 
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
         [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
@@ -273,6 +283,11 @@
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"getSysParam" one:one]) return;
 
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
         [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
@@ -292,6 +307,7 @@
                 NSMutableDictionary *params = nil;
                 if (deviceStatus != nil) {
                     params = [NSMutableDictionary dictionary];
+                    // Match Android field names from objectToMap reflection
                     params[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
                     params[@"lockMac"] = deviceStatus.lockMac ?: mac;
                     params[@"openMode"] = @(deviceStatus.openMode);
@@ -316,6 +332,8 @@
                     params[@"obliqueTongueStatues"] = @(deviceStatus.obliqueTongueStatues);
                     params[@"systemLanguage"] = @(deviceStatus.systemLanguage);
                     params[@"menuFeature"] = @"";
+                    // Add modelType to match Android objectToMap pattern
+                    params[@"modelType"] = @"HXBLEDeviceStatus";
                 }
                 
                 NSDictionary *response = [self responseMapWithCode:statusCode
@@ -642,6 +660,11 @@
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"setKeyExpirationAlarmTime" one:one]) return;
 
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
         [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
@@ -663,6 +686,11 @@
 - (void)deleteLock:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"deleteLock" one:one]) return;
+
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
 
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
@@ -705,6 +733,11 @@
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"getDna" one:one]) return;
+
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
 
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
