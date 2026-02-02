@@ -20,8 +20,11 @@
 #import <HXJBLESDK/HXJBLESDKHeader.h>
 #import <HXJBLESDK/SHBLENetworkConfigParam.h>
 
-// Channel names (MUST match Flutter side exactly)
-static NSString *const kMethodChannelName = @"wise_apartment/methods";
+// Channel names
+// Primary MethodChannel name (per requirement)
+static NSString *const kMethodChannelName = @"wise_apartment/ble";
+// Backward-compatible alias used by existing Dart code in this repo
+static NSString *const kLegacyMethodChannelName = @"wise_apartment/methods";
 static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
 @interface SyncLockKeyStreamDelegateImpl : NSObject <SyncLockKeyStreamDelegate>
@@ -31,6 +34,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 @interface WiseApartmentPlugin ()
 
 @property (nonatomic, strong) FlutterMethodChannel *methodChannel;
+@property (nonatomic, strong) FlutterMethodChannel *legacyMethodChannel;
 @property (nonatomic, strong) FlutterEventChannel *eventChannel;
 @property (nonatomic, strong) WAEventEmitter *eventEmitter;
 
@@ -62,6 +66,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
                              methodChannelWithName:kMethodChannelName
                              binaryMessenger:[registrar messenger]];
     [registrar addMethodCallDelegate:instance channel:instance.methodChannel];
+
+    // Backward-compatible MethodChannel alias
+    instance.legacyMethodChannel = [FlutterMethodChannel
+                                   methodChannelWithName:kLegacyMethodChannelName
+                                   binaryMessenger:[registrar messenger]];
+    [registrar addMethodCallDelegate:instance channel:instance.legacyMethodChannel];
     
     // Setup EventChannel
     instance.eventChannel = [FlutterEventChannel
@@ -99,7 +109,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     self.bleScanManager = [[BleScanManager alloc] init];
     self.deviceInfoManager = [[DeviceInfoManager alloc] init];
     self.lockManager = [[BleLockManager alloc] initWithBleClient:self.bleClient scanManager:self.bleScanManager];
-    self.recordManager = [[LockRecordManager alloc] initWithBleClient:self.bleClient];
+    self.recordManager = [[LockRecordManager alloc] initWithBleClient:self.bleClient eventEmitter:self.eventEmitter];
     NSLog(@"[WiseApartmentPlugin] All components setup complete");
 }
 
@@ -119,6 +129,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     
     // Nullify channels
     self.methodChannel = nil;
+    self.legacyMethodChannel = nil;
     self.eventChannel = nil;
     NSLog(@"[WiseApartmentPlugin] Cleanup complete");
 }
@@ -577,6 +588,17 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 - (void)handleSyncLockRecords:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleSyncLockRecords called with args: %@", args);
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+
+    // Streaming mode: results are emitted via EventChannel; return immediately.
+    if ([self.eventEmitter hasActiveListener]) {
+        NSLog(@"[WiseApartmentPlugin] Using streaming syncLockRecords");
+        [self.recordManager syncLockRecordsStream:params];
+        result(nil);
+        return;
+    }
+
+    // Non-streaming fallback.
+    NSLog(@"[WiseApartmentPlugin] Using non-streaming syncLockRecords (no active listener)");
     [self.recordManager syncLockRecords:params result:result];
 }
 

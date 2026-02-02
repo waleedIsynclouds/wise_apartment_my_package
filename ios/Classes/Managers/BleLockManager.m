@@ -485,6 +485,8 @@
                             NSDictionary *chunkEvent = @{
                                 @"type": @"syncLockKeyChunk",
                                 @"item": keyMap,
+                                // Keep an array form too, for callers that expect batches.
+                                @"items": @[ keyMap ],
                                 @"keyNum": keyMap[@"keyNum"] ?: @(0),
                                 @"totalSoFar": @(allKeys.count),
                                 @"isMore": @(moreData)

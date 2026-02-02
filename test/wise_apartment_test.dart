@@ -128,6 +128,11 @@ class MockWiseApartmentPlatform
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
     return Future.value({});
   }
+
+  @override
+  Stream<Map<String, dynamic>> get syncLockRecordsStream {
+    return const Stream<Map<String, dynamic>>.empty();
+  }
 }
 
 void main() {

@@ -26,7 +26,9 @@
 
 - (void)setEventSink:(FlutterEventSink)eventSink {
     NSLog(@"[WAEventEmitter] Setting event sink");
-    dispatch_async(self.eventQueue, ^{
+    // Ensure the sink is available immediately after onListen returns.
+    // Using dispatch_sync avoids dropping the first event due to a race.
+    dispatch_sync(self.eventQueue, ^{
         self.eventSink = eventSink;
         NSLog(@"[WAEventEmitter] Event sink set successfully");
     });
@@ -34,7 +36,7 @@
 
 - (void)clearEventSink {
     NSLog(@"[WAEventEmitter] Clearing event sink");
-    dispatch_async(self.eventQueue, ^{
+    dispatch_sync(self.eventQueue, ^{
         self.eventSink = nil;
         NSLog(@"[WAEventEmitter] Event sink cleared");
     });
