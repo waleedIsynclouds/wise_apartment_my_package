@@ -24,6 +24,10 @@
 static NSString *const kMethodChannelName = @"wise_apartment/methods";
 static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
+@interface SyncLockKeyStreamDelegateImpl : NSObject <SyncLockKeyStreamDelegate>
+- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter;
+@end
+
 @interface WiseApartmentPlugin ()
 
 @property (nonatomic, strong) FlutterMethodChannel *methodChannel;
@@ -630,7 +634,6 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         NSLog(@"[WiseApartmentPlugin] Using streaming syncLockKey");
         
         // Create delegate wrapper to emit events via EventEmitter
-        __weak typeof(self) weakSelf = self;
         id<SyncLockKeyStreamDelegate> streamDelegate = [[SyncLockKeyStreamDelegateImpl alloc] initWithEventEmitter:self.eventEmitter];
         
         [self.lockManager syncLockKeyStream:params delegate:streamDelegate];
@@ -695,12 +698,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
  * Concrete implementation of SyncLockKeyStreamDelegate that forwards events
  * to the EventEmitter for delivery to Flutter via EventChannel.
  */
-@interface SyncLockKeyStreamDelegateImpl : NSObject <SyncLockKeyStreamDelegate>
-@property (nonatomic, strong) WAEventEmitter *eventEmitter;
-- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter;
-@end
-
 @implementation SyncLockKeyStreamDelegateImpl
+
+@property (nonatomic, strong) WAEventEmitter *eventEmitter;
 
 - (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
     self = [super init];
