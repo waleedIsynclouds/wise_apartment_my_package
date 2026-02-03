@@ -412,8 +412,14 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
           if (v is bool) return v;
         }
         // Fallback: if code == 0x01 consider success
-        if (status != null && status.code == 0x01) {
+        if(Platform.isAndroid){
+          if (status != null && status.code == 0x01) {
           return true;
+        }
+        }else if(Platform.isIOS){
+          if (status != null && status.code == 0) {
+          return true;
+        }
         }
         return false;
       }

@@ -120,6 +120,7 @@
 
 - (NSString *)ackMessageForCode:(NSInteger)code {
     switch (code) {
+        case 0x00: return @"Operation successful";
         case 0x01: return @"Operation successful";
         case 0x02: return @"Password error";
         case 0x03: return @"Remote unlocking not enabled";
@@ -168,8 +169,8 @@
     response[@"code"] = @(code);
     response[@"message"] = message ?: @"";
     response[@"ackMessage"] = [self ackMessageForCode:code];
-    response[@"isSuccessful"] = @(code == 0x01); // KSHStatusCode_Success = 1
-    response[@"isError"] = @(code != 0x01);
+    response[@"isSuccessful"] = @(code == KSHStatusCode_Success);
+    response[@"isError"] = @(code != KSHStatusCode_Success);
     response[@"lockMac"] = lockMac ?: @"";
     response[@"body"] = body ?: [NSNull null];
     
@@ -307,32 +308,59 @@
                 NSMutableDictionary *params = nil;
                 if (deviceStatus != nil) {
                     params = [NSMutableDictionary dictionary];
-                    // Match Android field names from objectToMap reflection
+
+                    // Map device status fields to Dart SysParamResult keys
                     params[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
                     params[@"lockMac"] = deviceStatus.lockMac ?: mac;
-                    params[@"openMode"] = @(deviceStatus.openMode);
-                    params[@"normallyOpenMode"] = @(deviceStatus.normallyOpenMode);
-                    params[@"normallyopenFlag"] = @(deviceStatus.normallyopenFlag);
-                    params[@"volumeEnable"] = @(deviceStatus.volumeEnable);
-                    params[@"shackleAlarmEnable"] = @(deviceStatus.shackleAlarmEnable);
-                    params[@"tamperSwitchStatus"] = @(deviceStatus.tamperSwitchStatus);
-                    params[@"lockCylinderAlarmEnable"] = @(deviceStatus.lockCylinderAlarmEnable);
-                    params[@"cylinderSwitchStatus"] = @(deviceStatus.cylinderSwitchStatus);
-                    params[@"antiLockEnable"] = @(deviceStatus.antiLockEnable);
-                    params[@"antiLockStatues"] = @(deviceStatus.antiLockStatues);
-                    params[@"lockCoverAlarmEnable"] = @(deviceStatus.lockCoverAlarmEnable);
-                    params[@"lockCoverSwitchStatus"] = @(deviceStatus.lockCoverSwitchStatus);
-                    params[@"systemTimeTimestamp"] = @(deviceStatus.systemTimeTimestamp);
+
+                    // Basic flags / modes
+                    params[@"lockOpen"] = @(deviceStatus.openMode);
+                    params[@"normallyOpen"] = @(deviceStatus.normallyOpenMode);
+                    params[@"isSound"] = @(deviceStatus.volumeEnable);
+                    params[@"sysVolume"] = @(deviceStatus.systemVolume);
+
+                    // Tamper / core / cover / lock states
+                    params[@"isTamperWarn"] = @(deviceStatus.tamperSwitchStatus);
+                    params[@"isLockCoreWarn"] = @(deviceStatus.lockCylinderAlarmEnable);
+                    params[@"isLock"] = @(deviceStatus.antiLockEnable);
+                    params[@"isLockCap"] = @(deviceStatus.cylinderSwitchStatus);
+
+                    // Initialization / time
+                    // sysTime: human readable string from timestamp
+                    NSDate *sysDate = [NSDate dateWithTimeIntervalSince1970:(deviceStatus.systemTimeTimestamp)];
+                    NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
+                    [fmt setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+                    NSString *sysTimeStr = [fmt stringFromDate:sysDate] ?: @"";
+                    params[@"sysTime"] = sysTimeStr;
+                    params[@"sysTimestamp"] = @(deviceStatus.systemTimeTimestamp);
+                    // Accept both capitalized and camelCase timezone keys on Dart side
+                    params[@"TimezoneOffset"] = @(deviceStatus.timezoneOffset);
                     params[@"timezoneOffset"] = @(deviceStatus.timezoneOffset);
-                    params[@"systemVolume"] = @(deviceStatus.systemVolume);
-                    params[@"power"] = @(deviceStatus.power);
-                    params[@"lowPowerUnlockTimes"] = @(deviceStatus.lowPowerUnlockTimes);
-                    params[@"enableKeyType"] = @(deviceStatus.enableKeyType);
-                    params[@"squareTongueStatues"] = @(deviceStatus.squareTongueStatues);
-                    params[@"obliqueTongueStatues"] = @(deviceStatus.obliqueTongueStatues);
+
+                    // Battery / unlock counts
+                    params[@"electricNum"] = @(deviceStatus.power);
+                    params[@"noPowerOpenNo"] = @(deviceStatus.lowPowerUnlockTimes);
+                    params[@"noOpenKey"] = @(deviceStatus.enableKeyType);
+
+                    // Flags
+                    params[@"normallyOpenFlag"] = @(deviceStatus.normallyopenFlag);
+                    params[@"isLockFlag"] = @(deviceStatus.antiLockStatues);
+                    params[@"bigBoltFlag"] = @(deviceStatus.squareTongueStatues);
+                    params[@"boltFlag"] = @(deviceStatus.obliqueTongueStatues);
+                    params[@"isNoOpenFlag"] = @(deviceStatus.normallyopenFlag);
+                    params[@"isCover"] = @(deviceStatus.lockCoverSwitchStatus);
+                    params[@"isClose"] = @(deviceStatus.antiLockStatues);
+                    params[@"coreFlag"] = @(deviceStatus.cylinderSwitchStatus);
+
+                    // Language
                     params[@"systemLanguage"] = @(deviceStatus.systemLanguage);
-                    params[@"menuFeature"] = @"";
-                    // Add modelType to match Android objectToMap pattern
+
+                    // Fields not directly present on HXBLEDeviceStatus: provide safe defaults
+                    params[@"initStatus"] = @(deviceStatus.openMode);
+                    params[@"lockSystemFunction"] = @(0);
+                    params[@"lockNetSystemFunction2"] = @(0);
+
+                    // Add modelType for parity (optional)
                     params[@"modelType"] = @"HXBLEDeviceStatus";
                 }
                 
@@ -444,7 +472,7 @@
  * Streaming version of synclockkeys that emits incremental updates via delegate.
  * This method is designed for use with EventChannel to send partial results
  * to Flutter as they arrive from the BLE SDK.
- * 
+ *
  * @param args Dictionary containing baseAuth
  * @param delegate Delegate to receive chunk, done, and error events
  */
@@ -954,12 +982,39 @@ static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
                     // SYS PARAM (device status) - keep as-is unless you have Android sysParam keys list
                     // -------------------------
                     NSMutableDictionary *sysParamMap = [NSMutableDictionary dictionary];
+                    // Map device status to Dart SysParamResult keys (same mapping as getSysParam)
                     sysParamMap[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
                     sysParamMap[@"lockMac"] = deviceStatus.lockMac ?: mac;
-                    sysParamMap[@"openMode"] = @(deviceStatus.openMode);
-                    sysParamMap[@"power"] = @(deviceStatus.power);
-                    sysParamMap[@"systemVolume"] = @(deviceStatus.systemVolume);
-                    sysParamMap[@"menuFeature"] = @"";
+                    sysParamMap[@"lockOpen"] = @(deviceStatus.openMode);
+                    sysParamMap[@"normallyOpen"] = @(deviceStatus.normallyOpenMode);
+                    sysParamMap[@"isSound"] = @(deviceStatus.volumeEnable);
+                    sysParamMap[@"sysVolume"] = @(deviceStatus.systemVolume);
+                    sysParamMap[@"isTamperWarn"] = @(deviceStatus.tamperSwitchStatus);
+                    sysParamMap[@"isLockCoreWarn"] = @(deviceStatus.lockCylinderAlarmEnable);
+                    sysParamMap[@"isLock"] = @(deviceStatus.antiLockEnable);
+                    sysParamMap[@"isLockCap"] = @(deviceStatus.cylinderSwitchStatus);
+                    NSDate *sysDate2 = [NSDate dateWithTimeIntervalSince1970:(deviceStatus.systemTimeTimestamp)];
+                    NSDateFormatter *fmt2 = [[NSDateFormatter alloc] init];
+                    [fmt2 setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+                    sysParamMap[@"sysTime"] = [fmt2 stringFromDate:sysDate2] ?: @"";
+                    sysParamMap[@"sysTimestamp"] = @(deviceStatus.systemTimeTimestamp);
+                    sysParamMap[@"TimezoneOffset"] = @(deviceStatus.timezoneOffset);
+                    sysParamMap[@"timezoneOffset"] = @(deviceStatus.timezoneOffset);
+                    sysParamMap[@"electricNum"] = @(deviceStatus.power);
+                    sysParamMap[@"noPowerOpenNo"] = @(deviceStatus.lowPowerUnlockTimes);
+                    sysParamMap[@"noOpenKey"] = @(deviceStatus.enableKeyType);
+                    sysParamMap[@"normallyOpenFlag"] = @(deviceStatus.normallyopenFlag);
+                    sysParamMap[@"isLockFlag"] = @(deviceStatus.antiLockStatues);
+                    sysParamMap[@"bigBoltFlag"] = @(deviceStatus.squareTongueStatues);
+                    sysParamMap[@"boltFlag"] = @(deviceStatus.obliqueTongueStatues);
+                    sysParamMap[@"isNoOpenFlag"] = @(deviceStatus.normallyopenFlag);
+                    sysParamMap[@"isCover"] = @(deviceStatus.lockCoverSwitchStatus);
+                    sysParamMap[@"isClose"] = @(deviceStatus.antiLockStatues);
+                    sysParamMap[@"coreFlag"] = @(deviceStatus.cylinderSwitchStatus);
+                    sysParamMap[@"systemLanguage"] = @(deviceStatus.systemLanguage);
+                    sysParamMap[@"initStatus"] = @(deviceStatus.openMode);
+                    sysParamMap[@"lockSystemFunction"] = @(0);
+                    sysParamMap[@"lockNetSystemFunction2"] = @(0);
 
                     // -------------------------
                     // Response

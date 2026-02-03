@@ -24,19 +24,19 @@
     return self;
 }
 
+// Avoid deadlock: use async to set eventSink
 - (void)setEventSink:(FlutterEventSink)eventSink {
     NSLog(@"[WAEventEmitter] Setting event sink");
-    // Ensure the sink is available immediately after onListen returns.
-    // Using dispatch_sync avoids dropping the first event due to a race.
-    dispatch_sync(self.eventQueue, ^{
+    dispatch_async(self.eventQueue, ^{
         self.eventSink = eventSink;
         NSLog(@"[WAEventEmitter] Event sink set successfully");
     });
 }
 
+// Avoid deadlock: use async to clear eventSink
 - (void)clearEventSink {
     NSLog(@"[WAEventEmitter] Clearing event sink");
-    dispatch_sync(self.eventQueue, ^{
+    dispatch_async(self.eventQueue, ^{
         self.eventSink = nil;
         NSLog(@"[WAEventEmitter] Event sink cleared");
     });
@@ -71,7 +71,11 @@
     });
 }
 
+// Avoid deadlock: check if already on eventQueue
 - (BOOL)hasActiveListener {
+    if (dispatch_get_specific("com.wiseapartment.event_emitter")) {
+        return (self.eventSink != nil);
+    }
     __block BOOL hasListener = NO;
     dispatch_sync(self.eventQueue, ^{
         hasListener = (self.eventSink != nil);

@@ -480,6 +480,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     
     [HXBluetoothLockHelper connectPeripheralWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
         dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"[WiseApartmentPlugin] connectPeripheralWithMac callback - mac: %@, status: %d, reason: %@", mac, (int)statusCode, reason ?: @"");
             BOOL ok = (statusCode == KSHStatusCode_Success);
             if (ok) self.lastConnectedMac = mac;
             result(@(ok));
@@ -517,27 +518,65 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     NSString *mac = auth[@"mac"];
     if (![mac isKindOfClass:[NSString class]] || mac.length == 0) return NO;
 
-    // Resolve missing auth material from cache populated by addDevice.
-    NSDictionary *resolved = auth;
+    // Resolve auth material: prefer provided `auth` values, fallback to cached values when missing.
     NSDictionary *cached = [self.bleClient authForMac:mac];
-    if ([cached isKindOfClass:[NSDictionary class]]) {
-        resolved = cached;
+
+    NSString *authCode = nil;
+    if ([auth isKindOfClass:[NSDictionary class]] && [auth[@"authorizedRoot"] isKindOfClass:[NSString class]] && ((NSString *)auth[@"authorizedRoot"]).length > 0) {
+        authCode = auth[@"authorizedRoot"];
+        NSLog(@"[WiseApartmentPlugin] Using provided authorizedRoot for mac %@", mac);
+    } else if ([cached isKindOfClass:[NSDictionary class]] && [cached[@"authorizedRoot"] isKindOfClass:[NSString class]]) {
+        authCode = cached[@"authorizedRoot"];
+        NSLog(@"[WiseApartmentPlugin] Using cached authorizedRoot for mac %@", mac);
     }
 
-    NSString *authCode = resolved[@"authorizedRoot"];
-    NSString *dnaKey = resolved[@"dnaAes128Key"] ?: resolved[@"aesKey"];
-    NSNumber *keyGroupId = resolved[@"keyGroupId"];
-    NSNumber *bleProtocolVer = resolved[@"bleProtocolVer"] ?: resolved[@"bleProtocolVersion"] ?: resolved[@"protocolVer"];
+    NSString *dnaKey = nil;
+    if ([auth isKindOfClass:[NSDictionary class]] && [auth[@"dnaAes128Key"] isKindOfClass:[NSString class]] && ((NSString *)auth[@"dnaAes128Key"]).length > 0) {
+        dnaKey = auth[@"dnaAes128Key"];
+        NSLog(@"[WiseApartmentPlugin] Using provided dnaAes128Key for mac %@", mac);
+    } else if ([auth isKindOfClass:[NSDictionary class]] && [auth[@"aesKey"] isKindOfClass:[NSString class]] && ((NSString *)auth[@"aesKey"]).length > 0) {
+        dnaKey = auth[@"aesKey"];
+        NSLog(@"[WiseApartmentPlugin] Using provided aesKey for mac %@", mac);
+    } else if ([cached isKindOfClass:[NSDictionary class]] && [cached[@"dnaAes128Key"] isKindOfClass:[NSString class]]) {
+        dnaKey = cached[@"dnaAes128Key"];
+        NSLog(@"[WiseApartmentPlugin] Using cached dnaAes128Key for mac %@", mac);
+    } else if ([cached isKindOfClass:[NSDictionary class]] && [cached[@"aesKey"] isKindOfClass:[NSString class]]) {
+        dnaKey = cached[@"aesKey"];
+        NSLog(@"[WiseApartmentPlugin] Using cached aesKey for mac %@", mac);
+    }
 
-    if (![authCode isKindOfClass:[NSString class]] || authCode.length == 0) return NO;
-    if (![dnaKey isKindOfClass:[NSString class]] || dnaKey.length == 0) return NO;
-    if (![keyGroupId isKindOfClass:[NSNumber class]]) {
-        if ([keyGroupId isKindOfClass:[NSString class]]) keyGroupId = @([(NSString *)keyGroupId intValue]);
+    // keyGroupId: prefer provided, else cached, else default 900
+    NSNumber *keyGroupId = nil;
+    if ([auth isKindOfClass:[NSDictionary class]] && auth[@"keyGroupId"] != nil) {
+        keyGroupId = auth[@"keyGroupId"];
+    } else if ([cached isKindOfClass:[NSDictionary class]] && cached[@"keyGroupId"] != nil) {
+        keyGroupId = cached[@"keyGroupId"];
     }
-    if (![bleProtocolVer isKindOfClass:[NSNumber class]]) {
-        if ([bleProtocolVer isKindOfClass:[NSString class]]) bleProtocolVer = @([(NSString *)bleProtocolVer intValue]);
+    if ([keyGroupId isKindOfClass:[NSString class]]) keyGroupId = @([(NSString *)keyGroupId intValue]);
+    if (![keyGroupId isKindOfClass:[NSNumber class]]) keyGroupId = @(900);
+
+    // ble/protocol version: prefer provided, else cached, else 0
+    NSNumber *bleProtocolVer = nil;
+    if ([auth isKindOfClass:[NSDictionary class]] && auth[@"bleProtocolVer"] != nil) {
+        bleProtocolVer = auth[@"bleProtocolVer"];
+    } else if ([auth isKindOfClass:[NSDictionary class]] && auth[@"protocolVer"] != nil) {
+        bleProtocolVer = auth[@"protocolVer"];
+    } else if ([cached isKindOfClass:[NSDictionary class]] && cached[@"bleProtocolVer"] != nil) {
+        bleProtocolVer = cached[@"bleProtocolVer"];
+    } else if ([cached isKindOfClass:[NSDictionary class]] && cached[@"protocolVer"] != nil) {
+        bleProtocolVer = cached[@"protocolVer"];
     }
-    if (![keyGroupId isKindOfClass:[NSNumber class]] || ![bleProtocolVer isKindOfClass:[NSNumber class]]) return NO;
+    if ([bleProtocolVer isKindOfClass:[NSString class]]) bleProtocolVer = @([(NSString *)bleProtocolVer intValue]);
+    if (![bleProtocolVer isKindOfClass:[NSNumber class]]) bleProtocolVer = @(0);
+
+    if (![authCode isKindOfClass:[NSString class]] || authCode.length == 0) {
+        NSLog(@"[WiseApartmentPlugin] prepare failed: missing authorizedRoot for mac %@ (provided or cached)", mac);
+        return NO;
+    }
+    if (![dnaKey isKindOfClass:[NSString class]] || dnaKey.length == 0) {
+        NSLog(@"[WiseApartmentPlugin] prepare failed: missing dna/aes key for mac %@ (provided or cached)", mac);
+        return NO;
+    }
 
     [HXBluetoothLockHelper setDeviceAESKey:dnaKey
                                  authCode:authCode
