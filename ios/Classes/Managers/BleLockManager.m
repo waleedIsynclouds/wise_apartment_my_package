@@ -905,67 +905,88 @@ static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
                 if (statusCode == KSHStatusCode_Success && device != nil && deviceStatus != nil) {
 
                     // -------------------------
-                    // DNA INFO (match Android keys)
+                    // DNA INFO (match lib/src/models/dna_info_model.dart keys and types)
                     // -------------------------
                       NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
                       NSLog(@"[BleLockManager] Building DNA info (direct device properties)");
 
-                      // Prefer explicit fields on HXBLEDevice / HXBLEDeviceBase
+                      // mac (String)
                       HXPut(dnaMap, @"mac", device.lockMac ?: mac);
 
-                      // initTag / deviceType
-                      HXPut(dnaMap, @"initTag", @(device.initFlag));
+                      // initTag (String) - represent initFlag as string if present
+                      if (device.initFlag != 0) {
+                          HXPut(dnaMap, @"initTag", [@(device.initFlag) stringValue]);
+                      }
+
+                      // deviceType (int)
                       HXPut(dnaMap, @"deviceType", @(device.lockType));
 
-                      // hardware / software / protocolVer
-                      HXPut(dnaMap, @"hardware", device.hardwareVersion ?: @"");
-                      HXPut(dnaMap, @"software", device.rfMoudleSoftwareVer ?: @"");
+                      // hardware / software (strings expected by Dart)
+                      HXPut(dnaMap, @"hardWareVer", device.hardwareVersion ?: @"");
+                      HXPut(dnaMap, @"softWareVer", device.firmwareVersion ?: @"");
+
+                      // protocolVer (int)
                       HXPut(dnaMap, @"protocolVer", @(device.bleProtocolVersion));
 
-                      // appCmdSets / dnaAes128Key
+                      // dnaAes128Key (String)
                       HXPut(dnaMap, @"dnaAes128Key", device.aesKey ?: @"");
 
-                      // authorizedRoot / authorizedUser / authorizedTempUser
+                      // authorized fields (Strings)
                       HXPut(dnaMap, @"authorizedRoot", device.adminAuthCode ?: @"");
                       HXPut(dnaMap, @"authorizedUser", device.generalAuthCode ?: @"");
                       HXPut(dnaMap, @"authorizedTempUser", device.tempAuthCode ?: @"");
 
-                      // rFModuleType / lockFunctionType / maximumVolume / maximumUserNum
-                      HXPut(dnaMap, @"rFModuleType", @(device.rfModuleType));
-                      HXPut(dnaMap, @"MoudleFunction", @(device.rfModuleFunction));
-                      HXPut(dnaMap, @"lockFunctionType", @(device.lockFunctionType));
+                      // rFModuleType (int)
+                      HXPut(dnaMap, @"rFModuleType", @((int)device.rfModuleType));
+
+                      // lockFunctionType (int)
+                      HXPut(dnaMap, @"lockFunctionType", @((int)device.lockFunctionType));
+
+                      // maximumVolume / maximumUserNum (ints)
                       HXPut(dnaMap, @"maximumVolume", @(device.maxVolume));
                       HXPut(dnaMap, @"maximumUserNum", @(device.maxUser));
 
-                      // menuFeature / fingerPrintfNum / projectID / rFModuleMac
-                      HXPut(dnaMap, @"menuFeature", @(device.menuFeature));
+                      // menuFeature (int)
+                      HXPut(dnaMap, @"menuFeature", @((int)device.menuFeature));
+
+                      // rFModuleMac (String)
                       HXPut(dnaMap, @"rFModuleMac", device.rfModuleMac ?: @"");
 
-                      // ModuleSoftwareVer / ModuleHardwareVer
-                      HXPut(dnaMap, @"ModuleSoftwareVer", device.rfMoudleSoftwareVer ?: @"");
-                      HXPut(dnaMap, @"ModuleHardwareVer", device.rfMoudleHarewareVer ?: @"");
+                      // MoudleFunction (int)
+                      HXPut(dnaMap, @"MoudleFunction", @((int)device.rfModuleFunction));
 
-                      // passwordNumRange / OfflinePasswordVer / supportSystemLanguage
+                      // BleActiveTimes (int)
+                      HXPut(dnaMap, @"BleActiveTimes", @(device.bleActiveTimes));
+
+                      // ModuleSoftwareVer / ModuleHardwareVer: SDK exposes strings; include only when numeric
+                      if (device.rfMoudleSoftwareVer && device.rfMoudleSoftwareVer.length > 0) {
+                          NSCharacterSet *nonDigits = [[NSCharacterSet decimalDigitCharacterSet] invertedSet];
+                          NSString *digits = [[device.rfMoudleSoftwareVer componentsSeparatedByCharactersInSet:nonDigits] componentsJoinedByString:@""];
+                          if (digits.length > 0) {
+                              HXPut(dnaMap, @"ModuleSoftwareVer", @([digits integerValue]));
+                          }
+                      }
+                      if (device.rfMoudleHarewareVer && device.rfMoudleHarewareVer.length > 0) {
+                          NSCharacterSet *nonDigits = [[NSCharacterSet decimalDigitCharacterSet] invertedSet];
+                          NSString *digits = [[device.rfMoudleHarewareVer componentsSeparatedByCharactersInSet:nonDigits] componentsJoinedByString:@""];
+                          if (digits.length > 0) {
+                              HXPut(dnaMap, @"ModuleHardwareVer", @([digits integerValue]));
+                          }
+                      }
+
+                      // passwordNumRange / OfflinePasswordVer / supportSystemLanguage (ints)
                       HXPut(dnaMap, @"passwordNumRange", @(device.passwordNumRange));
                       HXPut(dnaMap, @"OfflinePasswordVer", @(device.offlinePasswordVer));
-                      HXPut(dnaMap, @"BleActiveTimes", @(device.bleActiveTimes));
-                      
-                      HXPut(dnaMap, @"sysLanguage", @(device.supportedSystemLanguage));
+                      HXPut(dnaMap, @"supportSystemLanguage", @((int)device.supportedSystemLanguage));
 
-                      // lockSystemFunction / lockNetSystemFunction
-                      HXPut(dnaMap, @"lockSystemFunction", @(device.lockSystemFunction));
-                      HXPut(dnaMap, @"lockNetSystemFunction", @(device.lockNetSystemFunction));
-                      HXPut(dnaMap, @"maximumUserNum", @(device.maxUser));
-                      
-                      // lockCompanyId / deviceDnaInfoStr
+                      // lockSystemFunction / lockNetSystemFunction (longs)
+                      HXPut(dnaMap, @"lockSystemFunction", @((long)device.lockSystemFunction));
+                      HXPut(dnaMap, @"lockNetSystemFunction", @((long)device.lockNetSystemFunction));
+
+                      // deviceDnaInfoStr (String)
                       HXPut(dnaMap, @"deviceDnaInfoStr", device.deviceDnaInfoStr ?: @"");
 
-                      // Keep your extra auth fields (optional but useful for iOS caching)
-                      HXPut(dnaMap, @"dnaKey", device.aesKey ?: @"");
-                      HXPut(dnaMap, @"authorizedRoot", device.adminAuthCode ?: @"");
-                      HXPut(dnaMap, @"authorizedUser", device.generalAuthCode ?: @"");
-                      HXPut(dnaMap, @"authorizedTempUser", device.tempAuthCode ?: @"");
-                      HXPut(dnaMap, @"keyGroupId", @900);
+                      // Note: omit keys that are not present in the SDK rather than sending zero/placeholders
 
                     // Cache auth material so subsequent iOS calls can be mac-only.
                     [self.bleClient setAuth:dnaMap forMac:(device.lockMac ?: mac)];

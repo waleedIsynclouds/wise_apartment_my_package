@@ -285,23 +285,58 @@ class AddLockKeyActionModel {
   /// are minutes since midnight (0..1439). Optional [start]/[end] are the
   /// overall active range. [vaildNumberVal] defaults to unlimited (0xFF).
   void applyCycle({
-    required Set<int> days,
-    required int dailyStartMinutes,
-    required int dailyEndMinutes,
-    DateTime? start,
-    DateTime? end,
-    int vaildNumberVal = 0xFF,
-  }) {
-    vaildMode = 1;
-    week = computeWeekMaskFromDays(days);
-    dayStartTimes = dailyStartMinutes;
-    dayEndTimes = dailyEndMinutes;
-    validStartTime = dateTimeToEpochSeconds(start);
-    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0xFFFFFFFF;
-    vaildNumber = (vaildNumberVal < 0)
-        ? 0
-        : (vaildNumberVal > 0xFF ? 0xFF : vaildNumberVal);
+  required Set<int> days,
+  required int dailyStartMinutes,
+  required int dailyEndMinutes,
+  DateTime? start,
+  DateTime? end,
+  int vaildNumberVal = 0xFF,
+}) {
+  // Cycle mode
+  vaildMode = 1;
+
+  // Week mask MUST be non-zero in cycle mode
+  week = computeWeekMaskFromDays(days);
+  if (week == 0) {
+    // If caller passes empty/invalid days => SDK will throw parameter error
+    // Choose a safe default (all week) instead of sending 0
+    week = 0x7F; // 0b1111111 (7 days)
   }
+
+  // Clamp minutes to 0..1439
+  int clampMinutes(int v) {
+    if (v < 0) return 0;
+    if (v > 1439) return 1439;
+    return v;
+  }
+
+  dayStartTimes = clampMinutes(dailyStartMinutes);
+  dayEndTimes = clampMinutes(dailyEndMinutes);
+
+  // SDK expects end > start when validMode==1
+  if (dayEndTimes <= dayStartTimes) {
+    // Auto-fix: make it at least +1 minute
+    dayEndTimes = (dayStartTimes == 1439) ? 1439 : (dayStartTimes + 1);
+  }
+
+  // Overall active range (epoch seconds)
+  validStartTime = dateTimeToEpochSeconds(start);
+
+  // IMPORTANT:
+  // Many native SDKs use 0xFFFFFFFF as "unlimited", but passing 4294967295
+  // through MethodChannel can cause parameter errors (int/long conversion).
+  // Using -1 is safer and usually treated as 0xFFFFFFFF on native side.
+  validEndTime = (end != null) ? dateTimeToEpochSeconds(end) : -1;
+
+  // valid number clamp (0..255)
+  if (vaildNumberVal < 0) {
+    vaildNumber = 0;
+  } else if (vaildNumberVal > 0xFF) {
+    vaildNumber = 0xFF;
+  } else {
+    vaildNumber = vaildNumberVal;
+  }
+}
 
   /// Configure this model as a limited-use key with an explicit number of
   /// usages. [vaildNumberVal] must be in 0..255. Optional [start]/[end]
