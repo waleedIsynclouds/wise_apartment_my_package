@@ -248,7 +248,17 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       final lockToken = await ApiService.instance.getLockTokenForDevice(
         widget.device,
       );
-      tokenIdVal = lockToken ?? _form.tokenIdController.text.trim();
+      if(lockToken == null){
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to get lock token; cannot register WiFi'),
+          ),
+        );
+        setState(() => _busy = false);
+        return;
+      }
+      tokenIdVal = lockToken ;
     }
     final serverAddrVal = _form.serverAddressController.text.trim().isEmpty
         ? defaultHost

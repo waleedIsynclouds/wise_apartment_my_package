@@ -88,7 +88,7 @@ class DnaInfoModel {
     return DnaInfoModel(
       deviceDnaInfoStr: map['deviceDnaInfoStr'] as String?,
       mac: map['mac'] as String?,
-      initTag: map['initTag'] as String?,
+      initTag: map['initTag'].toString(),
       deviceType: map['deviceType'] as int?,
       hardWareVer: map['hardWareVer'] as String?,
       softWareVer: map['softWareVer'] as String?,

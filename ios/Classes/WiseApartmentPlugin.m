@@ -127,6 +127,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     
     // Clear event sink
     [self.eventEmitter clearEventSink];
+
+    // No per-plugin wifi observer to remove
     
     // Nullify channels
     self.methodChannel = nil;
@@ -349,28 +351,28 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         result(@{@"success": @NO, @"message": @"Invalid parameters - expected Map"});
         return;
     }
-    
+
     // Per requirement: initialize addHelper before any steps.
     if (!self.addHelper) {
         self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
     }
-    
+
     // Extract data from Dart structure: {'wifi': wifiJson, 'dna': dna}
     NSString *wifiJson = params[@"wifi"];
     NSDictionary *dna = params[@"dna"];
-    
+
     if (!wifiJson) {
         NSLog(@"[WiseApartmentPlugin] Missing wifi parameter");
         result(@{@"success": @NO, @"message": @"wifi parameter is required"});
         return;
     }
-    
+
     if (![dna isKindOfClass:[NSDictionary class]]) {
         NSLog(@"[WiseApartmentPlugin] Missing or invalid dna parameter");
         result(@{@"success": @NO, @"message": @"dna parameter is required"});
         return;
     }
-    
+
     // Extract mac from dna dictionary
     NSString *mac = dna[@"mac"];
     if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
@@ -388,23 +390,19 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
             }
         }
     }
-    
+
     if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
         result(@{ @"success": @NO, @"code": @-1, @"message": @"mac is required" });
         return;
     }
 
     // Prepare: set device AES key before calling SDK methods (prevents 228 error)
-    // Use dna dictionary for autheƒntication
     if (![self prepare:dna]) {
         result(@{ @"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
         return;
     }
 
     // Build SHBLENetworkConfigParam.
-    // Supports:
-    // 1) JSON string with SHBLENetworkConfigParam-like keys
-    // 2) legacy rfCode string format (fallback)
     SHBLENetworkConfigParam *param = nil;
     if ([wifiJson isKindOfClass:[NSString class]]) {
         NSData *data = [((NSString *)wifiJson) dataUsingEncoding:NSUTF8StringEncoding];
@@ -449,14 +447,18 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         return;
     }
 
+    // No notification observer registered; only SDK completion result will be returned.
+
+    // Call the new SDK API (completion block only returns statusCode + reason)
     [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {
         dispatch_async(dispatch_get_main_queue(), ^{
             BOOL ok = (statusCode == KSHStatusCode_Success);
+            NSString *lockMacOut = macOut ?: [mac lowercaseString];
             result(@{
                 @"success": @(ok),
                 @"code": @((NSInteger)statusCode),
                 @"message": reason ?: @"",
-                @"lockMac": macOut ?: [mac lowercaseString],
+                @"lockMac": lockMacOut,
                 @"wifiStatus": @(wifiStatus),
                 @"rfModuleMac": rfModuleMac ?: @"",
                 @"originalRfModuleMac": originalRfModuleMac ?: @"",
