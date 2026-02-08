@@ -44,10 +44,11 @@ class _AddKeyScreenState extends State<AddKeyScreen> {
           int? lastGroupId;
           if (last is Map && last.containsKey('addedKeyGroupId')) {
             final v = last['addedKeyGroupId'];
-            if (v is int)
+            if (v is int) {
               lastGroupId = v;
-            else if (v is String)
+            } else if (v is String) {
               lastGroupId = int.tryParse(v);
+            }
           }
           if (lastGroupId != null) defaults['addedKeyGroupId'] = lastGroupId;
         }

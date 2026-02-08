@@ -29,6 +29,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   final _validModeController = TextEditingController();
   final _localRemoteModeController = TextEditingController();
   final _statusController = TextEditingController();
+  final _keyIdController = TextEditingController();
 
   final _modifyTimestampController = TextEditingController();
   final _validStartController = TextEditingController();
@@ -44,6 +45,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   // Validity segmented control: 0=Limit,1=Permanent,2=Cycle
   int _validitySegment = 2;
   int _currentUserType = 0; // 0=regular,1=admin
+  bool _grantLocalMenuAccess = false;
   DateTime? _startDate;
   DateTime? _endDate;
   TimeOfDay? _dailyStart;
@@ -77,6 +79,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
     _localRemoteModeController.text = widget.defaults.localRemoteMode
         .toString();
     _statusController.text = widget.defaults.status.toString();
+    _keyIdController.text = widget.defaults.addedKeyID.toString();
     _modifyTimestampController.text = widget.defaults.modifyTimestamp
         .toString();
     _validStartController.text = widget.defaults.validStartTime.toString();
@@ -123,6 +126,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
     _attach(_weekController);
     _attach(_dayStartController);
     _attach(_dayEndController);
+    _attach(_keyIdController);
   }
 
   @override
@@ -146,6 +150,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
     _weekController.dispose();
     _dayStartController.dispose();
     _dayEndController.dispose();
+    _keyIdController.dispose();
     _localRemoteModeController.dispose();
     _statusController.dispose();
 
@@ -257,6 +262,9 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                 _currentUserType == 0
                                     ? null
                                     : _addedKeyGroupIdController.text = '';
+                                // reset local-menu grant when switching to regular
+                                if (_currentUserType == 0)
+                                  _grantLocalMenuAccess = false;
                               });
                             },
                           ),
@@ -266,6 +274,24 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 8),
+              // Key ID and local-menu access (admin only)
+              if (_currentUserType == 1) ...[
+                TextFormField(
+                  controller: _keyIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'Key ID (1-10 for local menu access)',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  title: const Text('Grant Local Menu Access'),
+                  subtitle: const Text('Only key IDs 1..10 enable local menu'),
+                  value: _grantLocalMenuAccess,
+                  onChanged: (v) => setState(() => _grantLocalMenuAccess = v),
+                ),
+              ],
               const SizedBox(height: 8),
               // TextFormField(
               //   controller: _cellController,
@@ -325,13 +351,8 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                 },
                 onValueChanged: (v) => setState(() {
                   _validitySegment = v;
-                  if (v == 1) {
-                    // Permanent: clear dates and set controllers to 0
-                    _startDate = null;
-                    _endDate = null;
-                    _validStartController.text = '0';
-                    _validEndController.text = '0';
-                  }
+                  // Note: segment 1 (one Time) requires start/end dates, so don't clear them
+                  // Only segment 2 (Permanent) doesn't use dates
                 }),
               ),
 
@@ -674,6 +695,37 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                               ? 1
                               : 0);
 
+                          // If admin requested local-menu access, validate and set addedKeyID
+                          if (_currentUserType == 1 && _grantLocalMenuAccess) {
+                            final kid = parseI(_keyIdController.text);
+                            if (kid == null || kid < 1 || kid > 10) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Key ID for local menu must be 1..10',
+                                    ),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+                            try {
+                              _actionModel.setKeyIdForLocalMenu(kid);
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Invalid key id: $e')),
+                                );
+                              }
+                              return;
+                            }
+                          } else {
+                            // if not granting local menu, clear addedKeyID unless user typed a value
+                            final kid = parseI(_keyIdController.text) ?? 0;
+                            _actionModel.addedKeyID = kid;
+                          }
+
                           // apply validity helpers according to selected segment
                           if (_validitySegment == 2) {
                             _actionModel.applyPermanent(
@@ -695,7 +747,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                 : (_dailyStart!.hour * 60 +
                                       _dailyStart!.minute);
                             final de = _dailyEnd == null
-                                ? 0
+                                ? 1439
                                 : (_dailyEnd!.hour * 60 + _dailyEnd!.minute);
                             _actionModel.applyCycle(
                               days: _selectedWeekDays,
@@ -718,92 +770,31 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
 
                           final actionModel = _actionModel;
 
-                          final allowedAuth0 = {1, 4, 8};
-                          final allowedAuth1 = {2, 4};
-                          final int? authorModeVal;
-                          if (allowedAuth0.contains(chosenKeyType)) {
-                            authorModeVal = 0;
-                          } else if (allowedAuth1.contains(chosenKeyType)) {
-                            authorModeVal = 1;
-                          } else {
-                            authorModeVal = 0;
-                          }
-                          // authorMode->password required
-
-                          if (authorModeVal == 1) {
-                            final pw = actionModel.password;
-                            if (pw == null ||
-                                !RegExp(r'^\d{6,12}$').hasMatch(pw)) {
+                          // Validate user ID range
+                          final userIdInt = parseI(
+                            _addedKeyGroupIdController.text,
+                          );
+                          if (userIdInt != null) {
+                            final userIdError = validateUserID(userIdInt);
+                            if (userIdError != null) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Password required when authorMode==1 and must be 6-12 digits',
-                                    ),
-                                  ),
+                                  SnackBar(content: Text(userIdError)),
                                 );
                               }
                               return;
                             }
                           }
 
-                          if (actionModel.vaildMode == 1) {
-                            final int week = actionModel.week;
-                            final int ds = actionModel.dayStartTimes;
-                            final int de = actionModel.dayEndTimes;
-                            if (week == 0 ||
-                                ds < 0 ||
-                                ds > 1439 ||
-                                de < 0 ||
-                                de > 1439 ||
-                                de <= ds) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'vaildMode==1 requires valid week and day start/end minutes (0..1439, end>start)',
-                                    ),
-                                  ),
-                                );
-                              }
-                              return;
-                            }
-                          }
-
-                          final int vs = actionModel.validStartTime;
-                          final int ve = actionModel.validEndTime;
-                          if (vs < 0) {
+                          // Use model's validation instead of duplicating logic
+                          try {
+                            actionModel.validateOrThrow(
+                              authMode: actionModel.authorMode,
+                            );
+                          } catch (e) {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('validStartTime must be >= 0'),
-                                ),
-                              );
-                            }
-                            return;
-                          }
-                          if (!(ve == 0xFFFFFFFF || ve >= vs)) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'validEndTime must be 0xFFFFFFFF or >= validStartTime',
-                                  ),
-                                ),
-                              );
-                            }
-                            return;
-                          }
-
-                          final int vn = actionModel.vaildNumber;
-                          if (vn < 0 || vn > 0xFF) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'vaildNumber must be between 0 and 255',
-                                  ),
-                                ),
+                                SnackBar(content: Text('Validation error: $e')),
                               );
                             }
                             return;

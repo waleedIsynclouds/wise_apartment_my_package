@@ -60,10 +60,10 @@ class AddLockKeyActionModel {
       modifyTimestamp: parseInt(m['modifyTimestamp']) ?? 0,
       validStartTime: parseInt(m['validStartTime']) ?? 0,
       validEndTime: parseInt(m['validEndTime']) ?? 0,
-      week: parseInt(m['week']) ?? 0,
+      week: parseInt(m['week'] ?? m['weeks']) ?? 0,
       dayStartTimes: parseInt(m['dayStartTimes']) ?? 0,
       dayEndTimes: parseInt(m['dayEndTimes']) ?? 0,
-      vaildNumber: parseInt(m['vaildNumber']) ?? 0,
+      vaildNumber: parseInt(m['vaildNumber']) ?? 0xFF,
     );
   }
 
@@ -85,6 +85,19 @@ class AddLockKeyActionModel {
     'dayEndTimes': dayEndTimes,
     'vaildNumber': vaildNumber,
   };
+
+  /// Returns true when this key's id grants access to the lock's local menu.
+  /// Per device protocol, key ids 1..10 (inclusive) are considered local-menu keys.
+  bool hasLocalMenuAccess() {
+    return addedKeyID >= 1 && addedKeyID <= 10;
+  }
+
+  /// Set `addedKeyID` for local-menu granting. Only accepts 1..10.
+  /// Throws [ArgumentError] for out-of-range values.
+  void setKeyIdForLocalMenu(int id) {
+    if (id < 1 || id > 10) throw ArgumentError('keyId must be 1..10');
+    addedKeyID = id;
+  }
 
   /// Validate the model fields according to the rules expected by the lock.
   ///
@@ -111,8 +124,12 @@ class AddLockKeyActionModel {
       if (dayEndTimes < 0 || dayEndTimes > 1439) {
         errors.add('dayEndTimes must be in 0..1439.');
       }
-      if (dayEndTimes <= dayStartTimes) {
-        errors.add('dayEndTimes must be greater than dayStartTimes.');
+      // Allow both at 0 (meaning "all day"), otherwise require end > start
+      if (!(dayStartTimes == 0 && dayEndTimes == 0) &&
+          dayEndTimes <= dayStartTimes) {
+        errors.add(
+          'dayEndTimes must be greater than dayStartTimes (or both 0 for all-day).',
+        );
       }
     }
 
@@ -292,15 +309,51 @@ class AddLockKeyActionModel {
     DateTime? end,
     int vaildNumberVal = 0xFF,
   }) {
+    // Cycle mode: protocol only accepts 0 or 1 for `vaildMode`.
+    // Ensure we set the allowed value for cycle.
     vaildMode = 1;
+
+    // Week mask MUST be non-zero in cycle mode. If empty, default to all days.
     week = computeWeekMaskFromDays(days);
-    dayStartTimes = dailyStartMinutes;
-    dayEndTimes = dailyEndMinutes;
+    if (week == 0) {
+      week = 0x7F; // 0b1111111 (7 days)
+    }
+
+    // Clamp minutes to 0..1439
+    int clampMinutes(int v) {
+      if (v < 0) return 0;
+      if (v > 1439) return 1439;
+      return v;
+    }
+
+    dayStartTimes = clampMinutes(dailyStartMinutes);
+    dayEndTimes = clampMinutes(dailyEndMinutes);
+
+    // If caller didn't specify any daily window (both 0), many locks treat
+    // (0,0) as "unset" instead of "all-day". Use explicit full-day range
+    // [0..1439] so the device reliably interprets the key as usable all day.
+    if (dayStartTimes == 0 && dayEndTimes == 0) {
+      dayEndTimes = 1439; // full day
+    }
+
+    // Ensure end > start; if equal or less, make end at least start+1 minute
+    if (dayEndTimes <= dayStartTimes) {
+      dayEndTimes = (dayStartTimes == 1439) ? 1439 : (dayStartTimes + 1);
+    }
+
+    // Overall active range (epoch seconds)
     validStartTime = dateTimeToEpochSeconds(start);
-    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0xFFFFFFFF;
-    vaildNumber = (vaildNumberVal < 0)
-        ? 0
-        : (vaildNumberVal > 0xFF ? 0xFF : vaildNumberVal);
+    // Use 0xFFFFFFFF for unlimited end time when no end date provided.
+    validEndTime = (end != null) ? dateTimeToEpochSeconds(end) : 0xFFFFFFFF;
+
+    // valid number clamp (0..255)
+    if (vaildNumberVal < 0) {
+      vaildNumber = 0;
+    } else if (vaildNumberVal > 0xFF) {
+      vaildNumber = 0xFF;
+    } else {
+      vaildNumber = vaildNumberVal;
+    }
   }
 
   /// Configure this model as a limited-use key with an explicit number of
@@ -313,7 +366,7 @@ class AddLockKeyActionModel {
   }) {
     vaildMode = 0;
     validStartTime = dateTimeToEpochSeconds(start);
-    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0;
+    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0xFFFFFFFF;
     vaildNumber = (vaildNumberVal < 0)
         ? 0
         : (vaildNumberVal > 0xFF ? 0xFF : vaildNumberVal);
