@@ -122,6 +122,85 @@ final res = await wiseApartment.addLockKey(authMap, {'action': action.toMap()});
 
 Add these notes to ensure callers construct and validate the model before invoking `addLockKey`.
 
+### Native SDK parameter reference (Objective-C)
+
+The native HXJ SDK exposes a parameter object used for adding keys. For clarity, here is the Objective-C interface and notes (source comments):
+
+```objc
+@interface HXBLEAddKeyBaseParams : NSObject
+/** Required, MAC for Bluetooth lock, used to determine when sending commands to the specified device */
+@property (nonatomic, copy) NSString *lockMac;
+/**
+REQUIRED
+User ID (i.e. key group ID)
+(Note: When a key is added to this key group, a user can add multiple keys, corresponding to multiple lockKeyId)
+Assign keyGroupIDs to your own server to ensure that the keyGroupIDs of users in a lock do not conflict
+Value range: 900~4095
+ */
+@property (nonatomic, assign) int keyGroupId;
+/**
+REQUIRED
+Enable times
+0: Disabled
+1~254: Effective times
+255: Unlimited times
+ */
+@property (nonatomic, assign) int vaildNumber;
+/**
+REQUIRED
+Effective start timestamp (seconds)
+Permanent authorization: validStartTime=0x0000000
+ */
+@property (nonatomic, assign) long validStartTime;
+/**
+REQUIRED
+Effective end timestamp (seconds)
+Permanent authorization: validEndTime=0xFFFFFFFF
+ */
+@property (nonatomic, assign) long validEndTime;
+/**
+REQUIRED
+Validity period authorization method
+1: Validity period authorization
+2: Cycle Repetition Time Period Authorization
+ */
+@property (nonatomic, assign) int authMode;
+/**
+Optional,
+This value is valid when authMode==2
+Weeks, for example: Monday and Tuesday are represented as kSWeek_Monday | kSWeex_days
+ */
+@property (nonatomic, assign) kSHWeek week;
+/**
+Optional,
+This value is valid when authMode==2
+Daily start time
+Value range: 00:00~23:59
+Unit: minutes
+ */
+@property (nonatomic, assign) int dayStartTimes;
+/**
+Optional,
+This value is valid when authMode==2
+Daily end time
+Value range: 00:00~23:59
+Unit: minutes
+ */
+@property (nonatomic, assign) int dayEndTimes;
+@end
+```
+
+Notes & mapping to this Dart plugin:
+- `keyGroupId` (server-assigned user/group id): recommended range 900–4095. Ensure no collisions when assigning IDs for users on the same lock.
+- `vaildNumber`: 0 = disabled, 1..254 = limited-times, 255 = unlimited.
+- `validStartTime` / `validEndTime`: epoch seconds; use `0` for "no start limit" and `0xFFFFFFFF` for "no end limit" (permanent).
+- `authMode` in the native SDK is documented as `1` (single validity window) and `2` (cycle/repetition). In this Dart plugin the field is exposed as `vaildMode` and the accepted values are `0` (single window) and `1` (cycle). Do not use value `2` with the Dart model — only `0` or `1` are valid when calling `addLockKey` via this package.
+- `week`, `dayStartTimes`, `dayEndTimes` are used for cycle mode. Use a bitmask for `week` (bit 0 = Monday, bit 6 = Sunday).
+- Important: Some locks treat `(dayStartTimes==0 && dayEndTimes==0)` as "unset" rather than "all-day". To ensure the key is usable all day, prefer sending `dayStartTimes=0` and `dayEndTimes=1439` (23:59).
+- Local menu access: keys whose `addedKeyID` (the lock-assigned key id) is between `1` and `10` (inclusive) are commonly used to grant access to the lock's local menu. This plugin provides `setKeyIdForLocalMenu(id)` and `hasLocalMenuAccess()` helpers on `AddLockKeyActionModel` to make this explicit; when granting local menu access from the example UI, ensure the admin chooses a `Key ID` in `1..10`.
+
+If you maintain native integrations, map `authMode` ↔ `vaildMode` consistently: native `(1,2)` → Dart `(0,1)`.
+
 
 ## Platform Setup
 
