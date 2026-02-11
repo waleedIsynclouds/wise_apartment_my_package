@@ -27,7 +27,8 @@ class MockWiseApartmentPlatform
   Future<bool> stopScan() => Future.value(true);
 
   @override
-  Future<bool> openLock(Map<String, dynamic> auth) => Future.value(true);
+  Future<Map<String, dynamic>> openLock(Map<String, dynamic> auth) =>
+      Future.value({});
 
   @override
   Future<bool> disconnect({required String mac}) => Future.value(true);

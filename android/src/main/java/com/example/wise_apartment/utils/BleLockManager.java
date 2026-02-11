@@ -259,7 +259,12 @@ public class BleLockManager {
             public void onResponse(Response<HxBLEUnlockResult> response) {
                 Log.d(TAG, "openLock response: " + response.code());
                 if (response.isSuccessful()) {
-                    result.success(true);
+                    Map<String, Object> details = new HashMap<>();
+                    details.put("code", response.code());
+                    details.put("ackMessage", ackMessageForCode(response.code()));
+                    details.put("power", response.body().getPower()); // Add power
+                    details.put("unlockingDuration", response.body().getUnlockingDuration()); // Add unlockingDuration
+                    result.success(details);
                 } else {
                     // Include numeric code and ackMessage in details so Dart can act on it
                     try {

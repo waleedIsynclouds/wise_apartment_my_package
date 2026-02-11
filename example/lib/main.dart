@@ -8,10 +8,10 @@ import 'screens/add_device.dart';
 import 'screens/device_details.dart';
 import 'src/secure_storage.dart';
 
-
 void main() {
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: MyApp()));
 }
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -64,7 +64,9 @@ class _MyAppState extends State<MyApp> {
         }
 
         if (!allGranted) {
-          _addLog('Permissions not granted. Please allow Bluetooth permissions.');
+          _addLog(
+            'Permissions not granted. Please allow Bluetooth permissions.',
+          );
           return;
         }
       }
@@ -112,8 +114,9 @@ class _MyAppState extends State<MyApp> {
         "keyGroupId": 1,
         "bleProtocolVer": 2,
       };
-      final success = await _plugin.openLock(auth);
-      _addLog("Open Lock Success: $success");
+      final Map<String, dynamic> resp =
+          await _plugin.openLock(auth) as Map<String, dynamic>;
+      _addLog("Open Lock Response: ${resp['ackMessage'] ?? resp['message']}");
     } catch (e) {
       _addLog("Open Lock Error: $e");
     }
@@ -156,18 +159,20 @@ class _MyAppState extends State<MyApp> {
         ];
 
         final deniedPermissions = <String>[];
-        
+
         for (final p in perms) {
           final status = await p.status;
           _addLog('Checking ${p.toString()}: ${status.toString()}');
-          
+
           if (!status.isGranted) {
             _addLog('Permission ${p.toString()} not granted, requesting...');
             final req = await p.request();
             if (!req.isGranted) {
               final permName = p.toString().replaceAll('Permission.', '');
               deniedPermissions.add(permName);
-              _addLog('Permission $permName was denied (status: ${req.toString()})');
+              _addLog(
+                'Permission $permName was denied (status: ${req.toString()})',
+              );
             } else {
               _addLog('Permission ${p.toString()} granted');
             }
@@ -180,7 +185,7 @@ class _MyAppState extends State<MyApp> {
           if (!mounted) return;
           final permList = deniedPermissions.join(', ');
           _addLog('Missing permissions: $permList');
-          
+
           final action = await showDialog<String>(
             context: context,
             barrierDismissible: false,
@@ -234,7 +239,7 @@ class _MyAppState extends State<MyApp> {
               ],
             ),
           );
-          
+
           if (action == 'settings') {
             await openAppSettings();
             // Give user time to enable permissions before retrying
@@ -265,7 +270,7 @@ class _MyAppState extends State<MyApp> {
           final settingsPath = Platform.isAndroid
               ? 'Swipe down → Tap Bluetooth icon\nor\nSettings → Connected devices → Bluetooth'
               : 'Settings → Bluetooth → Toggle ON';
-          
+
           final action = await showDialog<String>(
             context: context,
             barrierDismissible: false,
@@ -305,7 +310,7 @@ class _MyAppState extends State<MyApp> {
               ],
             ),
           );
-          
+
           if (action == 'settings') {
             await openAppSettings();
             await Future.delayed(const Duration(milliseconds: 500));
@@ -322,7 +327,7 @@ class _MyAppState extends State<MyApp> {
         final serviceStatus = await Permission.location.serviceStatus;
         if (serviceStatus != ServiceStatus.enabled) {
           if (!mounted) return;
-          
+
           final action = await showDialog<String>(
             context: context,
             barrierDismissible: false,
@@ -363,7 +368,7 @@ class _MyAppState extends State<MyApp> {
               ],
             ),
           );
-          
+
           if (action == 'settings') {
             await openAppSettings();
             await Future.delayed(const Duration(milliseconds: 500));
@@ -375,9 +380,7 @@ class _MyAppState extends State<MyApp> {
         }
       }
 
-      _addLog(
-        'Startup checks passed: permissions and Bluetooth OK.',
-      );
+      _addLog('Startup checks passed: permissions and Bluetooth OK.');
     } catch (e) {
       _addLog('Startup checks failed: $e');
     }

@@ -97,9 +97,20 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }
 
   @override
-  Future<bool> openLock(Map<String, dynamic> auth) async {
+  Future<Map<String, dynamic>> openLock(Map<String, dynamic> auth) async {
     final args = Map<String, dynamic>.from(auth);
-    return _invokeBool('openLock', args);
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('openLock', args);
+      if (result == null) return <String, dynamic>{};
+      // Persist status info if present
+      try {
+        WiseStatusStore.setFromMap(result);
+      } catch (_) {}
+      return result;
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
   }
 
   @override
@@ -412,14 +423,14 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
           if (v is bool) return v;
         }
         // Fallback: if code == 0x01 consider success
-        if(Platform.isAndroid){
+        if (Platform.isAndroid) {
           if (status != null && status.code == 0x01) {
-          return true;
-        }
-        }else if(Platform.isIOS){
+            return true;
+          }
+        } else if (Platform.isIOS) {
           if (status != null && status.code == 0) {
-          return true;
-        }
+            return true;
+          }
         }
         return false;
       }

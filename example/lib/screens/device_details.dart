@@ -34,13 +34,26 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     setState(() => _busy = true);
     final auth = widget.device.toMap();
     try {
-      final ok = await _plugin.openLock(auth);
-      // successful boolean result -> clear any previous status
-      WiseStatusStore.clear();
+      final Map<String, dynamic> resp = await _plugin.openLock(auth);
+      // Persist/store status info from native if present
+      try {
+        WiseStatusStore.setFromMap(resp);
+      } catch (_) {}
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Open: $ok')));
+      final ack = resp['ackMessage'] ?? resp['message'] ?? 'unknown';
+      final power = resp['body'] is Map
+          ? (resp['body']['power'] ?? resp['power'])
+          : resp['power'];
+      final unlockingDuration = resp['body'] is Map
+          ? (resp['body']['unlockingDuration'] ?? resp['unlockingDuration'])
+          : resp['unlockingDuration'];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Open: $ack (power: $power, duration: $unlockingDuration)',
+          ),
+        ),
+      );
     } catch (e) {
       WiseStatusHandler? status;
       String? codeStr;
@@ -248,7 +261,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       final lockToken = await ApiService.instance.getLockTokenForDevice(
         widget.device,
       );
-      if(lockToken == null){
+      if (lockToken == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -258,7 +271,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         setState(() => _busy = false);
         return;
       }
-      tokenIdVal = lockToken ;
+      tokenIdVal = lockToken;
     }
     final serverAddrVal = _form.serverAddressController.text.trim().isEmpty
         ? defaultHost

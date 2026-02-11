@@ -40,7 +40,7 @@ class WiseApartment {
 
   /// Sends the Open Lock command to a device.
   /// [auth] must contain: authCode, dnaKey, keyGroupId, bleProtocolVer, mac.
-  Future<bool> openLock(Map<String, dynamic> auth) {
+  Future<Map<String, dynamic>> openLock(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.openLock(auth);
   }
 

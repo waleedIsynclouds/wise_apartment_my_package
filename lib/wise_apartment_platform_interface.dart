@@ -21,7 +21,7 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   Future<bool> initBleClient();
   Future<List<Map<String, dynamic>>> startScan({int timeoutMs = 10000});
   Future<bool> stopScan();
-  Future<bool> openLock(Map<String, dynamic> auth);
+  Future<Map<String, dynamic>> openLock(Map<String, dynamic> auth);
   Future<bool> disconnect({required String mac});
   Future<bool> clearSdkState();
 
