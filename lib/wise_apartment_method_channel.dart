@@ -40,6 +40,27 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _syncLockRecordsStream!;
   }
 
+  Stream<Map<String, dynamic>>? _sysParamStream;
+
+  @override
+  Stream<Map<String, dynamic>> get getSysParamStream {
+    _sysParamStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'sysParam' ||
+            type == 'sysParamDone' ||
+            type == 'sysParamError') {
+          return m;
+        }
+        // ignore other event types
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _sysParamStream!;
+  }
+
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
     final dynamic mac = auth['mac'];
     if (mac is String && mac.isNotEmpty) {
@@ -379,6 +400,17 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   Future<bool> syncLockTime(Map<String, dynamic> auth) async {
     final args = Map<String, dynamic>.from(auth);
     return _invokeBool('syncLockTime', args);
+  }
+
+  @override
+  Future<bool> startGetSysParamStream(Map<String, dynamic> auth) async {
+    final args = Map<String, dynamic>.from(auth);
+    try {
+      await methodChannel.invokeMethod('getSysParamStream', args);
+      return true;
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
   }
 
   @override

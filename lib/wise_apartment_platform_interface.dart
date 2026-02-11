@@ -76,7 +76,13 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Stream of syncLockRecords events (chunks, done, errors)
   Stream<Map<String, dynamic>> get syncLockRecordsStream;
 
+  /// Stream that emits system parameter responses from native as they arrive.
+  Stream<Map<String, dynamic>> get getSysParamStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
+
+  /// Start the native getSysParam stream. Emits events on `getSysParamStream`.
+  Future<bool> startGetSysParamStream(Map<String, dynamic> auth);
 
   /// Retrieve system parameters from the lock (SysParamResult).
   /// Returns a Map containing the response metadata and a `body` map of fields.

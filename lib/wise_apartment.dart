@@ -147,6 +147,16 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.syncLockKeyStream;
   }
 
+  /// Stream of system parameter events coming from native.
+  Stream<Map<String, dynamic>> get getSysParamStream {
+    return WiseApartmentPlatform.instance.getSysParamStream;
+  }
+
+  /// Start native sysParam stream for the provided auth/DNA map.
+  Future<bool> startGetSysParamStream(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.startGetSysParamStream(auth);
+  }
+
   /// Stream-based synchronization of lock records from the device.
   /// Emits incremental results as records are fetched from the lock.
   /// Each chunk event contains a batch of 10 records.

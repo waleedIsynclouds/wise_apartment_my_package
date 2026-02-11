@@ -492,6 +492,48 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "getSysParamStream":
+        if (lockManager != null) {
+          if (eventSink != null) {
+            lockManager.getSysParamStream((Map<String, Object>) call.arguments, new BleLockManager.SysParamStreamCallback() {
+              @Override
+              public void onData(final Map<String, Object> event) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(event);
+                  }
+                });
+              }
+
+              @Override
+              public void onDone(final Map<String, Object> event) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(event);
+                  }
+                });
+              }
+
+              @Override
+              public void onError(final Map<String, Object> event) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.error(String.valueOf(event.get("code")), String.valueOf(event.get("message")), event);
+                  }
+                });
+              }
+            });
+            safeResult.success(null);
+          } else {
+            safeResult.error("NO_LISTENER", "EventChannel listener not attached", null);
+          }
+        } else {
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
+        }
+        break;
       default:
         safeResult.notImplemented();
         break;

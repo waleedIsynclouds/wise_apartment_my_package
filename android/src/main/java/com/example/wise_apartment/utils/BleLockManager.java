@@ -41,6 +41,15 @@ public class BleLockManager {
         void onError(Map<String, Object> errorEvent);
     }
 
+    /**
+     * Callback interface for streaming getSysParam events.
+     */
+    public interface SysParamStreamCallback {
+        void onData(Map<String, Object> event);
+        void onDone(Map<String, Object> event);
+        void onError(Map<String, Object> event);
+    }
+
     // Helper: convert vendor Response<?> to stable Map<String,Object>
     private Map<String, Object> responseToMap(Response<?> response, Object bodyObj) {
         Map<String, Object> m = new HashMap<>();
@@ -1194,6 +1203,62 @@ public class BleLockManager {
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling getSysParam", t);
             postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Streaming variant: emits one or more sysParam events via callback.
+     * Useful when native may emit interim updates.
+     */
+    public void getSysParamStream(Map<String, Object> args, final SysParamStreamCallback callback) {
+        Log.d(TAG, "getSysParamStream called with args: " + args);
+        try {
+            BlinkyAction action = new BlinkyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            bleClient.getSysParam(action, new FunCallback<SysParamResult>() {
+                @Override
+                public void onResponse(Response<SysParamResult> response) {
+                    try {
+                        Map<String, Object> bodyMap = null;
+                        try {
+                            SysParamResult body = response.body();
+                            if (body != null) bodyMap = sysParamToMap(body);
+                        } catch (Throwable ignored) {}
+
+                        Map<String, Object> evt = responseToMap(response, bodyMap);
+                        // Tag as streaming event
+                        Map<String, Object> out = new HashMap<>();
+                        out.put("type", "sysParam");
+                        out.put("response", evt);
+                        callback.onData(out);
+
+                        // Emit done
+                        Map<String, Object> done = new HashMap<>();
+                        done.put("type", "sysParamDone");
+                        done.put("response", evt);
+                        callback.onDone(done);
+                    } catch (Throwable t) {
+                        Map<String, Object> err = new HashMap<>();
+                        err.put("type", "sysParamError");
+                        err.put("message", t.getMessage());
+                        callback.onError(err);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Map<String, Object> err = new HashMap<>();
+                    err.put("type", "sysParamError");
+                    err.put("message", t.getMessage());
+                    callback.onError(err);
+                }
+            });
+        } catch (Throwable t) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("type", "sysParamError");
+            err.put("message", t.getMessage());
+            callback.onError(err);
         }
     }
 }

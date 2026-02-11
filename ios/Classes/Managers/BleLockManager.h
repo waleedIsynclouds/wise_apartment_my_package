@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result;
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result;
 - (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result;
+- (void)getSysParamStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result;
 - (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result;

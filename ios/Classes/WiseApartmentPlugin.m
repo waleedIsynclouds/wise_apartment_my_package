@@ -252,6 +252,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"getSysParam" isEqualToString:method]) {
         [self handleGetSysParam:args result:result];
     }
+    else if ([@"getSysParamStream" isEqualToString:method]) {
+        [self handleGetSysParamStream:args result:result];
+    }
     // SDK State
     else if ([@"clearSdkState" isEqualToString:method]) {
         [self handleClearSdkState:result];
@@ -888,6 +891,21 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
     NSLog(@"[WiseApartmentPlugin] Getting system parameters via BleLockManager");
     [self.lockManager getSysParam:params result:result];
+}
+
+- (void)handleGetSysParamStream:(id)args result:(FlutterResult)result {
+    NSLog(@"[WiseApartmentPlugin] handleGetSysParamStream called with args: %@", args);
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+
+    if (![self.eventEmitter hasActiveListener]) {
+        NSLog(@"[WiseApartmentPlugin] No active EventChannel listener for getSysParamStream");
+        result(@NO);
+        return;
+    }
+
+    [self.lockManager getSysParamStream:params eventEmitter:self.eventEmitter];
+    // Acknowledge immediately; actual data will be sent via EventChannel
+    result(nil);
 }
 
 // SDK State

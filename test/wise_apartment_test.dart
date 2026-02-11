@@ -131,6 +131,16 @@ class MockWiseApartmentPlatform
   }
 
   @override
+  Stream<Map<String, dynamic>> get getSysParamStream {
+    return Stream.value({});
+  }
+
+  @override
+  Future<bool> startGetSysParamStream(Map<String, dynamic> auth) {
+    return Future.value(true);
+  }
+
+  @override
   Stream<Map<String, dynamic>> get syncLockRecordsStream {
     return const Stream<Map<String, dynamic>>.empty();
   }

@@ -386,6 +386,68 @@
     }
 }
 
+// Streaming version of getSysParam: emits events via the shared WAEventEmitter.
+- (void)getSysParamStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:^(id _Nullable r){ }];
+    NSLog(@"[BleLockManager] getSysParamStream called with args: %@", args);
+
+    if (!eventEmitter || ![eventEmitter hasActiveListener]) {
+        NSLog(@"[BleLockManager] ✗ eventEmitter not available for getSysParamStream");
+        return;
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"message": cfgErr.message ?: @"Configuration error", @"code": @(-1) }];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"message": @"mac is required", @"code": @(-1) }];
+        return;
+    }
+
+    @try {
+        [HXBluetoothLockHelper getDeviceStatusWithMac:mac
+                                     completionBlock:^(KSHStatusCode statusCode,
+                                                       NSString *reason,
+                                                       HXBLEDeviceStatus *deviceStatus) {
+            @try {
+                [self.bleClient disConnectBle:nil];
+
+                NSMutableDictionary *params = nil;
+                if (deviceStatus != nil) {
+                    params = [NSMutableDictionary dictionary];
+                    params[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
+                    params[@"lockMac"] = deviceStatus.lockMac ?: mac;
+                    params[@"electricNum"] = @(deviceStatus.power);
+                    // keep small set; full map can be assembled by getSysParam
+                }
+
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:mac
+                                                               body:params];
+
+                [eventEmitter emitEvent:@{ @"type": @"sysParam", @"response": response }];
+
+                if (statusCode == KSHStatusCode_Success) {
+                    [eventEmitter emitEvent:@{ @"type": @"sysParamDone", @"response": response }];
+                } else {
+                    [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"response": response }];
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[BleLockManager] Exception in getSysParamStream callback: %@", exception);
+                [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"message": exception.reason ?: @"Exception" }];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling getSysParamStream: %@", exception);
+        [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"message": exception.reason ?: @"Exception starting stream" }];
+    }
+}
+
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"synclockkeys" one:one]) return;
