@@ -893,6 +893,126 @@ public class BleLockManager {
     }
 
     /**
+     * Call the vendor SDK to delete a lock key and map the result back to Dart.
+     * Supports four deletion modes:
+     * 0: Delete by key number (key type + key ID)
+     * 1: Delete by key type (all non-admin keys of specified type)
+     * 2: Delete by content (card number or password + key type)
+     * 3: Delete by user ID (all keys for specified keyGroupId)
+     */
+    public void deleteLockKey(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "deleteLockKey called with args: " + args);
+
+        try {
+            DelLockKeyAction action = new DelLockKeyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            // Extract and validate the action map
+            if (args != null && args.containsKey("action") && args.get("action") instanceof Map) {
+                Map actionMap = (Map) args.get("action");
+                
+                try {
+                    // Parse deleteMode (required)
+                    int deleteMode = parseInt(actionMap.get("deleteMode"), 0);
+                    action.setDeleteMode(deleteMode);
+
+                    // Validate and set fields based on deleteMode
+                    switch (deleteMode) {
+                        case 0: // Delete by key number
+                            if (!actionMap.containsKey("deleteKeyType")) {
+                                postResultError(result, "INVALID_ARGS", "deleteKeyType is required for deleteMode 0", null);
+                                return;
+                            }
+                            if (!actionMap.containsKey("deleteKeyId")) {
+                                postResultError(result, "INVALID_ARGS", "deleteKeyId is required for deleteMode 0", null);
+                                return;
+                            }
+                            action.setDeleteKeyType(parseInt(actionMap.get("deleteKeyType"), 0));
+                            action.setDeleteKeyID(parseInt(actionMap.get("deleteKeyId"), 0));
+                            break;
+
+                        case 1: // Delete by key type
+                            if (!actionMap.containsKey("deleteKeyType")) {
+                                postResultError(result, "INVALID_ARGS", "deleteKeyType is required for deleteMode 1", null);
+                                return;
+                            }
+                            action.setDeleteKeyType(parseInt(actionMap.get("deleteKeyType"), 0));
+                            break;
+
+                        case 2: // Delete by content
+                            if (!actionMap.containsKey("deleteKeyType")) {
+                                postResultError(result, "INVALID_ARGS", "deleteKeyType is required for deleteMode 2", null);
+                                return;
+                            }
+                            if (!actionMap.containsKey("cardNumOrPassword")) {
+                                postResultError(result, "INVALID_ARGS", "cardNumOrPassword is required for deleteMode 2", null);
+                                return;
+                            }
+                            action.setDeleteKeyType(parseInt(actionMap.get("deleteKeyType"), 0));
+                            action.setCardNumOrPsw(parseString(actionMap.get("cardNumOrPassword"), ""));
+                            break;
+
+                        case 3: // Delete by user ID
+                            if (!actionMap.containsKey("deleteKeyGroupId")) {
+                                postResultError(result, "INVALID_ARGS", "deleteKeyGroupId is required for deleteMode 3", null);
+                                return;
+                            }
+                            action.setDeleteAPPUserID(parseInt(actionMap.get("deleteKeyGroupId"), 0));
+                            break;
+
+                        default:
+                            postResultError(result, "INVALID_ARGS", "deleteMode must be 0, 1, 2, or 3", null);
+                            return;
+                    }
+
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid deleteLockKey action map", e);
+                    postResultError(result, "INVALID_ARGS", "Invalid deleteLockKey action: " + e.getMessage(), null);
+                    return;
+                }
+            } else {
+                postResultError(result, "INVALID_ARGS", "action map is required", null);
+                return;
+            }
+
+            // Log the fully built action for debugging
+            try { Log.d(TAG, "deleteLockKey action built: " + objectToMap(action)); } catch (Throwable ignored) {}
+
+            bleClient.delLockKey(action, new FunCallback<ActionResultModel>() {
+                @Override
+                public void onResponse(Response<ActionResultModel> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        try {
+                            Map<String, Object> bodyMap = objectToMap(response.body());
+                            postResultSuccess(result, responseToMap(response, bodyMap));
+                        } catch (Throwable t) {
+                            postResultError(result, "ERROR", t.getMessage(), null);
+                        }
+                    } else {
+                        try {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        } catch (Throwable t) {
+                            postResultError(result, "FAILED", "Code: " + response.code(), null);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "deleteLockKey failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling deleteLockKey", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
      * Call the vendor SDK to synchronize keys on the lock and map results.
      */
     public void syncLockKey(Map<String, Object> args, final Result result) {

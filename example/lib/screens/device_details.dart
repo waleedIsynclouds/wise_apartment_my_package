@@ -13,6 +13,7 @@ import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
 import '../src/api_service.dart';
+import 'dart:async';
 // wifi info removed; default SSID/password used instead
 
 class DeviceDetailsScreen extends StatefulWidget {
@@ -488,6 +489,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                   child: const Text('Add Key'),
                 ),
               ),
+
               const SizedBox(height: 12),
               Center(
                 child: ElevatedButton.icon(

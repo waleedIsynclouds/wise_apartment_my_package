@@ -131,6 +131,16 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.addLockKey(auth, params);
   }
 
+  /// Delete a key from the lock. `auth` should contain auth/DNA fields; `params`
+  /// contains action-specific parameters required by the native SDK.
+  /// Use DeleteLockKeyActionModel to build the params with proper validation.
+  Future<Map<String, dynamic>> deleteLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) {
+    return WiseApartmentPlatform.instance.deleteLockKey(auth, params);
+  }
+
   /// Synchronize keys on the lock. Returns a Map describing the sync result.
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.syncLockKey(auth);

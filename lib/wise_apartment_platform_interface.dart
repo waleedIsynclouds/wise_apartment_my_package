@@ -66,6 +66,13 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     dynamic params,
   );
 
+  /// Deletes a lock key using provided auth and action parameters.
+  /// Returns a Map describing the result (code/ackMessage/body...).
+  Future<Map<String, dynamic>> deleteLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  );
+
   /// Synchronize keys on the lock. Accepts auth/DNA map and returns a Map
   /// describing the sync result or a list of keys inside the returned Map.
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth);

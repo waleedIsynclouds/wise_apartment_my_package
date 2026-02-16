@@ -217,6 +217,126 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     }
   }
 
+  Future<void> _deleteKey(Map<String, dynamic> keyData) async {
+    // Confirm deletion
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Key'),
+        content: Text(
+          'Are you sure you want to delete this key?\n\n'
+          'Type: ${keyData['keyType']}\n'
+          'ID: ${keyData['lockKeyId']}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _loading = true);
+
+    try {
+      // Extract key information from synced data
+      final keyType = keyData['keyType'] as int? ?? 0;
+      final lockKeyId = keyData['lockKeyId'] as int? ?? 0;
+
+      // Create delete action using mode 0 (delete by key number)
+      final deleteAction = DeleteLockKeyActionModel.byKeyNumber(
+        keyType: keyType,
+        keyId: lockKeyId,
+      );
+
+      // Validate before sending
+      final errors = deleteAction.validate();
+      if (errors.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Validation error: ${errors.first}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      // Call the delete method
+      final response = await _plugin.deleteLockKey(widget.auth, deleteAction);
+
+      if (!mounted) return;
+
+      final success = response['success'] == true;
+      final message = response['message'] ?? 'Unknown result';
+      final code = response['code'];
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Key deleted successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Refresh the keys list
+        await _syncKeys();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ Delete failed: $message (code: $code)'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting key: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _editKey(Map<String, dynamic> keyData) async {
+    // Navigate to AddLockKeyScreen with existing key data for editing
+    final defaults = AddLockKeyActionModel(
+      addedKeyType: keyData['keyType'] as int? ?? 0,
+      addedKeyID: keyData['lockKeyId'] as int? ?? 0,
+      addedKeyGroupId: keyData['keyGroupId'] as int? ?? 0,
+      validStartTime: keyData['validStartTime'] as int? ?? 0,
+      validEndTime: keyData['validEndTime'] as int? ?? 0,
+      vaildNumber: keyData['validNumber'] as int? ?? 255,
+      vaildMode: keyData['authMode'] as int? ?? 0,
+      week: keyData['week'] as int? ?? 0,
+      dayStartTimes: keyData['dayStartTimes'] as int? ?? 0,
+      dayEndTimes: keyData['dayEndTimes'] as int? ?? 0,
+    );
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddLockKeyScreen(auth: widget.auth, defaults: defaults),
+      ),
+    );
+
+    // Refresh keys after returning from edit
+    await _syncKeys();
+  }
+
   Future<void> _showAddKeySheet() async {
     // populate defaults similar to AddKeyScreen
     final AddLockKeyActionModel defaults = AddLockKeyActionModel();
@@ -361,7 +481,37 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                               'ID: ${keyData['lockKeyId'] ?? 'N/A'}',
                               style: const TextStyle(fontSize: 12),
                             ),
-                            trailing: const Icon(Icons.chevron_right),
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'edit') {
+                                  await _editKey(keyData);
+                                } else if (value == 'delete') {
+                                  await _deleteKey(keyData);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, size: 20),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, size: 20, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                             onTap: () async {
                               await showDialog<void>(
                                 context: context,

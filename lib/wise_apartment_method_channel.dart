@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'wise_apartment.dart';
 import 'wise_apartment_platform_interface.dart';
 import 'src/wise_status_store.dart';
+import 'src/models/keys/delete_lock_key_action_model.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
@@ -396,6 +397,53 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     try {
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('addLockKey', args);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> deleteLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+
+    // Accept either a DeleteLockKeyActionModel or a Map. If a model is
+    // provided, use it directly; otherwise build the model from the Map.
+    DeleteLockKeyActionModel actionModel;
+    if (params is DeleteLockKeyActionModel) {
+      actionModel = params;
+    } else if (params is Map) {
+      final dynamic maybeAction = params['action'];
+      if (maybeAction is Map) {
+        actionModel = DeleteLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(maybeAction),
+        );
+      } else {
+        actionModel = DeleteLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(params),
+        );
+      }
+    } else {
+      // Fallback: attempt to parse via toMap if available, otherwise empty
+      try {
+        actionModel = (params as DeleteLockKeyActionModel);
+      } catch (_) {
+        actionModel = DeleteLockKeyActionModel();
+      }
+    }
+
+    // Validate the model before sending to native
+    actionModel.validateOrThrow();
+
+    // Attach the action map under the `action` key for the native side.
+    args['action'] = actionModel.toMap();
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('deleteLockKey', args);
       return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);

@@ -8,6 +8,7 @@ export 'sys_param_result.dart';
 export 'wifi_registration_event.dart';
 export 'keys/lock_key_result.dart';
 export 'keys/add_lock_key_action_model.dart';
+export 'keys/delete_lock_key_action_model.dart';
 
 // New unified models
 export 'lock_response.dart';

@@ -474,6 +474,13 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "deleteLockKey":
+        if (lockManager != null) {
+          lockManager.deleteLockKey((Map<String, Object>) call.arguments, safeResult);
+        } else {
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
+        }
+        break;
       case "syncLockKey":
         if (lockManager != null) {
           // Use streaming version if EventSink is available

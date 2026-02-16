@@ -322,6 +322,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"addLockKey" isEqualToString:method]) {
         [self handleAddLockKey:args result:result];
     }
+    else if ([@"deleteLockKey" isEqualToString:method]) {
+        [self handleDeleteLockKey:args result:result];
+    }
     else if ([@"syncLockKey" isEqualToString:method]) {
         [self handleSyncLockKey:args result:result];
     }
@@ -914,6 +917,129 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     } @catch (NSException *exception) {
         NSLog(@"[WiseApartmentPlugin] Exception calling addKey: %@", exception);
         result(@{@"success": @NO, @"message": exception.reason ?: @"Exception calling addKey"});
+    }
+}
+
+- (void)handleDeleteLockKey:(id)args result:(FlutterResult)result {
+    NSLog(@"[WiseApartmentPlugin] handleDeleteLockKey called with args: %@", args);
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters for deleteLockKey");
+        result(@{@"success": @NO, @"message": @"Invalid parameters"});
+        return;
+    }
+    
+    // Prepare: set device AES key before calling SDK methods
+    if (![self prepare:params]) {
+        result(@{@"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first"});
+        return;
+    }
+    
+    NSString *mac = [params[@"mac"] lowercaseString];
+    if (!mac || mac.length == 0) {
+        result(@{@"success": @NO, @"message": @"mac is required"});
+        return;
+    }
+    
+    // Extract action map
+    NSDictionary *actionMap = [params[@"action"] isKindOfClass:[NSDictionary class]] ? params[@"action"] : @{};
+    if (actionMap.count == 0) {
+        result(@{@"success": @NO, @"message": @"action map is required"});
+        return;
+    }
+    
+    int deleteMode = [actionMap[@"deleteMode"] intValue];
+    
+    // Validate deleteMode
+    if (deleteMode < 0 || deleteMode > 3) {
+        result(@{@"success": @NO, @"message": @"deleteMode must be 0, 1, 2, or 3"});
+        return;
+    }
+    
+    // Create delete key params
+    HXDeleteKeyParams *deleteParams = [[HXDeleteKeyParams alloc] init];
+    deleteParams.lockMac = mac;
+    deleteParams.deleteMode = deleteMode;
+    
+    // Validate and set fields based on deleteMode
+    switch (deleteMode) {
+        case 0: // Delete by key number
+            if (!actionMap[@"deleteKeyType"]) {
+                result(@{@"success": @NO, @"message": @"deleteKeyType is required for deleteMode 0"});
+                return;
+            }
+            if (!actionMap[@"deleteKeyId"]) {
+                result(@{@"success": @NO, @"message": @"deleteKeyId is required for deleteMode 0"});
+                return;
+            }
+            deleteParams.keyType = [actionMap[@"deleteKeyType"] intValue];
+            deleteParams.lockKeyId = [actionMap[@"deleteKeyId"] intValue];
+            break;
+            
+        case 1: // Delete by key type
+            if (!actionMap[@"deleteKeyType"]) {
+                result(@{@"success": @NO, @"message": @"deleteKeyType is required for deleteMode 1"});
+                return;
+            }
+            deleteParams.keyType = [actionMap[@"deleteKeyType"] intValue];
+            break;
+            
+        case 2: // Delete by content
+            if (!actionMap[@"deleteKeyType"]) {
+                result(@{@"success": @NO, @"message": @"deleteKeyType is required for deleteMode 2"});
+                return;
+            }
+            if (!actionMap[@"cardNumOrPassword"]) {
+                result(@{@"success": @NO, @"message": @"cardNumOrPassword is required for deleteMode 2"});
+                return;
+            }
+            deleteParams.keyType = [actionMap[@"deleteKeyType"] intValue];
+            deleteParams.passwordOrCar = actionMap[@"cardNumOrPassword"];
+            break;
+            
+        case 3: // Delete by user ID
+            if (!actionMap[@"deleteKeyGroupId"]) {
+                result(@{@"success": @NO, @"message": @"deleteKeyGroupId is required for deleteMode 3"});
+                return;
+            }
+            deleteParams.keyGroupId = [actionMap[@"deleteKeyGroupId"] intValue];
+            break;
+            
+        default:
+            result(@{@"success": @NO, @"message": @"Invalid deleteMode"});
+            return;
+    }
+    
+    NSLog(@"[WiseApartmentPlugin] Deleting lock key - mode: %d, mac: %@", deleteMode, mac);
+    
+    @try {
+        [HXBluetoothLockHelper deleteKey:deleteParams completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            @try {
+                NSLog(@"[WiseApartmentPlugin] deleteKey callback - status: %d, reason: %@", (int)statusCode, reason);
+                
+                BOOL ok = (statusCode == KSHStatusCode_Success);
+                NSMutableDictionary *body = [NSMutableDictionary dictionary];
+                body[@"success"] = @(ok);
+                body[@"code"] = @((int)statusCode);
+                body[@"statusCode"] = @((int)statusCode);
+                body[@"message"] = reason ?: @"";
+                body[@"lockMac"] = mac;
+                
+                if (ok) {
+                    NSLog(@"[WiseApartmentPlugin] Lock key deleted successfully");
+                } else {
+                    NSLog(@"[WiseApartmentPlugin] Lock key delete failed: %@", reason);
+                }
+                
+                result(body);
+            } @catch (NSException *exception) {
+                NSLog(@"[WiseApartmentPlugin] Exception in deleteKey callback: %@", exception);
+                result(@{@"success": @NO, @"message": [exception reason] ?: @"Unknown exception"});
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[WiseApartmentPlugin] Exception in handleDeleteLockKey: %@", exception);
+        result(@{@"success": @NO, @"message": [exception reason] ?: @"Unknown exception"});
     }
 }
 
