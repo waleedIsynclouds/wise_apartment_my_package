@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:wise_apartment/src/models/hxj_bluetooth_device_model.dart';
 
+import 'src/models/hxj_bluetooth_device_model.dart';
 import 'wise_apartment_platform_interface.dart';
 export 'src/wise_apartment_exception.dart';
 export 'src/models/export_hxj_models.dart';

@@ -1,14 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:wise_apartment/src/models/wifi_registration_event.dart';
+import 'package:wise_apartment_example/src/config.dart';
+import '../src/wifi_config.dart';
+import '../src/api_service.dart';
+import 'package:wise_apartment/src/models/dna_info_model.dart';
 
 class WifiRegistrationScreen extends StatefulWidget {
-  final Map<String, dynamic> auth;
-  const WifiRegistrationScreen({Key? key, required this.auth})
-      : super(key: key);
+  final DnaInfoModel device;
+  const WifiRegistrationScreen({Key? key, required this.device}) : super(key: key);
 
   @override
   State<WifiRegistrationScreen> createState() => _WifiRegistrationScreenState();
@@ -22,10 +25,14 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   WifiRegistrationEvent? _latestEvent;
 
   // WiFi config parameters
-  final _ssidController = TextEditingController(text: 'MyWiFiNetwork');
-  final _passwordController = TextEditingController(text: 'password123');
-  final _hostController = TextEditingController(text: 'mqtt.example.com');
-  final _portController = TextEditingController(text: '1883');
+  final _ssidController = TextEditingController(text: 'EASHAN');
+  final _passwordController = TextEditingController(text: '12345678');
+  final _hostController = TextEditingController(text: ExampleConfig.defaultHost);
+  final _portController = TextEditingController(text: ExampleConfig.defaultPort);
+
+  // Configuration type and token update flag
+  WifiConfigurationType _configurationType = WifiConfigurationType.wifiAndServer;
+  bool _updateToken = true;
 
   @override
   void initState() {
@@ -35,6 +42,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   }
 
   @override
+
   void dispose() {
     _streamSubscription?.cancel();
     _ssidController.dispose();
@@ -128,29 +136,41 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     });
 
     try {
-      // Build WiFi configuration JSON
-      final wifiConfig = {
-        'ssid': _ssidController.text,
-        'password': _passwordController.text,
-        'host': _hostController.text,
-        'port': int.tryParse(_portController.text) ?? 1883,
-        'autoGetIP': true,
-      };
+      // Build WifiConfig RF-code and pass device DNA map
+      final defaultHost = ExampleConfig.defaultHost;
+      final defaultPort = ExampleConfig.defaultPort;
 
-      final wifiJson = jsonEncode(wifiConfig);
+      String tokenIdVal = '';
+      if (_configurationType == null || _configurationType != WifiConfigurationType.wifiOnly) {
+        final lockToken = await ApiService.instance.getLockTokenForDevice(widget.device);
+        if (lockToken == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to get lock token; cannot register WiFi')),
+          );
+          setState(() => _loading = false);
+          return;
+        }
+        tokenIdVal = lockToken;
+      }
 
-      debugPrint(
-        '════════════════════════════════════════════════════════════',
+      final serverAddrVal = _hostController.text.trim().isEmpty ? defaultHost : _hostController.text.trim();
+      final serverPortVal = _portController.text.trim().isEmpty ? defaultPort : _portController.text.trim();
+
+      final wifiModel = WifiConfig(
+        ssid: _ssidController.text.trim(),
+        password: _passwordController.text,
+        serverAddress: serverAddrVal,
+        serverPort: serverPortVal,
+        configurationType: _configurationType,
+        tokenId: tokenIdVal,
       );
-      debugPrint('🔌 Starting WiFi registration');
-      debugPrint('   Config: $wifiJson');
-      debugPrint('   Auth: ${widget.auth}');
-      debugPrint(
-        '════════════════════════════════════════════════════════════',
-      );
 
-      // Call the regWifi method
-      final result = await _plugin.registerWifi(wifiJson, widget.auth);
+      final rfCode = wifiModel.toRfCodeString();
+
+      final dna = widget.device.toMap();
+      log('Initiating WiFi registration with RF code: $rfCode and DNA: $dna');
+      final result = await _plugin.registerWifi(rfCode, dna);
 
       debugPrint('✓ registerWifi method returned: $result');
 
@@ -195,213 +215,218 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          // Current Status Card
-          Card(
-            margin: const EdgeInsets.all(16),
-            color: _getStatusColor(_latestEvent).withOpacity(0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
+      body: SingleChildScrollView(
+        child: SizedBox(
+          height:  MediaQuery.of(context).size.height - kToolbarHeight,
+          child: Column(
+            children: [
+              // Current Status Card
+              Card(
+                margin: const EdgeInsets.all(16),
+                color: _getStatusColor(_latestEvent).withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     children: [
-                      Icon(
-                        _getStatusIcon(_latestEvent),
-                        size: 48,
-                        color: _getStatusColor(_latestEvent),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Current Status',
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _latestEvent?.statusMessage ?? 'Not started',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: _getStatusColor(_latestEvent),
-                                  ),
-                            ),
-                            if (_latestEvent != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_latestEvent!.statusHex} • ${_latestEvent!.statusName}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (_loading) const CircularProgressIndicator(),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // WiFi Configuration Form
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'WiFi Configuration',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _ssidController,
-                  decoration: const InputDecoration(
-                    labelText: 'WiFi SSID',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.wifi),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'WiFi Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _hostController,
-                  decoration: const InputDecoration(
-                    labelText: 'MQTT Host',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.cloud),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _portController,
-                  decoration: const InputDecoration(
-                    labelText: 'MQTT Port',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.numbers),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _loading ? null : _startWifiRegistration,
-                    icon: Icon(
-                      _loading ? Icons.hourglass_empty : Icons.wifi_tethering,
-                    ),
-                    label: Text(
-                      _loading ? 'Registering...' : 'Start WiFi Registration',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Status History
-          Expanded(
-            child: _events.isEmpty
-                ? Center(
-                    child: Text(
-                      'No status updates yet.\nStart WiFi registration to see updates.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.grey,
+                      Row(
+                        children: [
+                          Icon(
+                            _getStatusIcon(_latestEvent),
+                            size: 48,
+                            color: _getStatusColor(_latestEvent),
                           ),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Status History (${_events.length})',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            TextButton.icon(
-                              onPressed: _clearHistory,
-                              icon: const Icon(Icons.clear_all, size: 16),
-                              label: const Text('Clear'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _events.length,
-                          itemBuilder: (context, index) {
-                            final event = _events[index];
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: _getStatusColor(event).withOpacity(0.2),
-                                  child: Icon(
-                                    _getStatusIcon(event),
-                                    color: _getStatusColor(event),
-                                    size: 24,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Current Status',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _latestEvent?.statusMessage ?? 'Not started',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: _getStatusColor(_latestEvent),
+                                      ),
+                                ),
+                                if (_latestEvent != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${_latestEvent!.statusHex} • ${_latestEvent!.statusName}',
+                                    style: Theme.of(context).textTheme.bodySmall,
                                   ),
-                                ),
-                                title: Row(
-                                  children: [
-                                    Text(event.statusEmoji),
-                                    const SizedBox(width: 8),
-                                    Expanded(child: Text(event.statusMessage)),
-                                  ],
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${event.statusHex} • ${event.statusName} • ${event.statusType}',
-                                      style: const TextStyle(fontWeight: FontWeight.w500),
-                                    ),
-                                    Text(
-                                      'Time: ${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}:${event.timestamp.second.toString().padLeft(2, '0')}',
-                                    ),
-                                    if (event.moduleMac.isNotEmpty)
-                                      Text('Module: ${event.moduleMac}'),
-                                    if (event.lockMac.isNotEmpty)
-                                      Text('Lock: ${event.lockMac}'),
-                                  ],
-                                ),
-                                isThreeLine: true,
-                              ),
-                            );
-                          },
-                        ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (_loading) const CircularProgressIndicator(),
+                        ],
                       ),
                     ],
                   ),
+                ),
+              ),
+          
+              // WiFi Configuration Form
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'WiFi Configuration',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _ssidController,
+                      decoration: const InputDecoration(
+                        labelText: 'WiFi SSID',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.wifi),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _passwordController,
+                      decoration: const InputDecoration(
+                        labelText: 'WiFi Password',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.lock),
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _hostController,
+                      decoration: const InputDecoration(
+                        labelText: 'MQTT Host',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.cloud),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _portController,
+                      decoration: const InputDecoration(
+                        labelText: 'MQTT Port',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.numbers),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : _startWifiRegistration,
+                        icon: Icon(
+                          _loading ? Icons.hourglass_empty : Icons.wifi_tethering,
+                        ),
+                        label: Text(
+                          _loading ? 'Registering...' : 'Start WiFi Registration',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          
+              const SizedBox(height: 16),
+          
+              // Status History
+              Expanded(
+                child: _events.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No status updates yet.\nStart WiFi registration to see updates.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Colors.grey,
+                              ),
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Status History (${_events.length})',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                TextButton.icon(
+                                  onPressed: _clearHistory,
+                                  icon: const Icon(Icons.clear_all, size: 16),
+                                  label: const Text('Clear'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _events.length,
+                              itemBuilder: (context, index) {
+                                final event = _events[index];
+          
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: _getStatusColor(event).withOpacity(0.2),
+                                      child: Icon(
+                                        _getStatusIcon(event),
+                                        color: _getStatusColor(event),
+                                        size: 24,
+                                      ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Text(event.statusEmoji),
+                                        const SizedBox(width: 8),
+                                        Expanded(child: Text(event.statusMessage)),
+                                      ],
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${event.statusHex} • ${event.statusName} • ${event.statusType}',
+                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                        ),
+                                        Text(
+                                          'Time: ${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}:${event.timestamp.second.toString().padLeft(2, '0')}',
+                                        ),
+                                        if (event.moduleMac.isNotEmpty)
+                                          Text('Module: ${event.moduleMac}'),
+                                        if (event.lockMac.isNotEmpty)
+                                          Text('Lock: ${event.lockMac}'),
+                                      ],
+                                    ),
+                                    isThreeLine: true,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

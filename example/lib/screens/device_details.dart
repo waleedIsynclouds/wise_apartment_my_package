@@ -491,12 +491,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               const SizedBox(height: 12),
               Center(
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final auth = widget.device.toMap();
+                    onPressed: () async {
                     if (!mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => WifiRegistrationScreen(auth: auth),
+                        builder: (_) => WifiRegistrationScreen(device: widget.device),
                       ),
                     );
                   },
