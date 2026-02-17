@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:wise_apartment/src/models/keys/change_key_pwd_action_model.dart';
@@ -130,7 +132,7 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
 
         final resp = await _plugin.changeLockKeyPwd(auth, change);
         results['changePwd'] = resp;
-        final ok = resp['success'] == true || resp['isSuccessful'] == true;
+        final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
         if (ok) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -139,6 +141,7 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
                 backgroundColor: Colors.green,
               ),
             );
+            Navigator.of(context).pop(results);
           }
         } else {
           if (mounted) {
@@ -247,7 +250,98 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
     }
 
     setState(() => _saving = false);
-    Navigator.of(context).pop(results);
+    log('Edit results: $results');
+    // Navigator.of(context).pop(results);
+  }
+
+  Future<void> _changePassword() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final auth = widget.auth;
+    final keyData = widget.keyData;
+    try {
+      final newPwd = _newPwdController.text.trim();
+      final oldPwd = _oldPwdController.text.trim();
+      if (newPwd.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No new password provided')));
+        return;
+      }
+      if (oldPwd.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide current password to change it')));
+        return;
+      }
+
+      final change = ChangeKeyPwdActionModel(
+        lockKeyId: keyData['lockKeyId'] as int? ?? 0,
+        oldPassword: oldPwd,
+        newPassword: newPwd,
+        lockMac: auth['mac'] as String? ?? '',
+      );
+
+      final resp = await _plugin.changeLockKeyPwd(auth, change);
+      final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
+      if (ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed successfully'), backgroundColor: Colors.green));
+          Navigator.of(context).pop({'changePwd': resp});
+        }
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password change failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password change error: $e'), backgroundColor: Colors.red));
+    } finally {
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changeValidity() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final auth = widget.auth;
+    try {
+      final originalStart = (widget.keyData['validStartTime'] as int?) ?? 0;
+      final originalEnd = (widget.keyData['validEndTime'] as int?) ?? 0xFFFFFFFF;
+      final newStartSec = _validStart != null ? (_validStart!.millisecondsSinceEpoch ~/ 1000) : 0;
+      final newEndSec = _validEnd != null ? (_validEnd!.millisecondsSinceEpoch ~/ 1000) : 0xFFFFFFFF;
+      final vnum = int.tryParse(_vaildNumberController.text.trim()) ?? (widget.keyData['validNumber'] as int? ?? 255);
+
+      final changed = (newStartSec != originalStart) || (newEndSec != originalEnd) || (vnum != (widget.keyData['validNumber'] as int? ?? widget.keyData['vaildNumber'] as int? ?? 255));
+      if (!changed) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No validity changes detected')));
+        setState(() => _saving = false);
+        return;
+      }
+
+      final modify = ModifyKeyActionModel.fromMap({
+        'authorMode': widget.keyData['authMode'] as int? ?? 1,
+        'changeMode': 1,
+        'changeID': widget.keyData['lockKeyId'] as int? ?? 0,
+        'validStartTime': newStartSec,
+        'validEndTime': newEndSec,
+        'vaildNumber': vnum,
+      });
+
+      final errors = modify.validate();
+      if (errors.isNotEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Validation error: ${errors.first}'), backgroundColor: Colors.red));
+        setState(() => _saving = false);
+        return;
+      }
+
+      final resp = await _plugin.modifyLockKey(auth, modify);
+      final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
+      if (ok) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Validity updated'), backgroundColor: Colors.green));
+        Navigator.of(context).pop({'modifyKey': resp});
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Modify failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Modify key error: $e'), backgroundColor: Colors.red));
+    } finally {
+      setState(() => _saving = false);
+    }
   }
 
   @override
@@ -306,19 +400,42 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save),
-              label: const Text('Save changes'),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _changePassword,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.lock_open),
+                    label: const Text('Change Password'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _changeValidity,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.schedule),
+                    label: const Text('Update Validity'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

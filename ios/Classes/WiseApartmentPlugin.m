@@ -442,7 +442,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
         NSLog(@"[WiseApartmentPlugin] Invalid parameters for regWifi");
-        result(@{@"success": @NO, @"message": @"Invalid parameters - expected Map"});
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Invalid parameters - expected Map"});
         return;
     }
 
@@ -457,13 +457,13 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
     if (!wifiJson) {
         NSLog(@"[WiseApartmentPlugin] Missing wifi parameter");
-        result(@{@"success": @NO, @"message": @"wifi parameter is required"});
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"wifi parameter is required"});
         return;
     }
 
     if (![dna isKindOfClass:[NSDictionary class]]) {
         NSLog(@"[WiseApartmentPlugin] Missing or invalid dna parameter");
-        result(@{@"success": @NO, @"message": @"dna parameter is required"});
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"dna parameter is required"});
         return;
     }
 
@@ -486,13 +486,13 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     }
 
     if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
-        result(@{ @"success": @NO, @"code": @-1, @"message": @"mac is required" });
+        result(@{ @"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"code": @-1, @"message": @"mac is required" });
         return;
     }
 
     // Prepare: set device AES key before calling SDK methods (prevents 228 error)
     if (![self prepare:dna]) {
-        result(@{ @"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
+        result(@{ @"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
         return;
     }
 
@@ -533,13 +533,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         }
     }
 
-    if (!param) {
-        param = [self wa_parseRfCode:wifiJson lockMac:[mac lowercaseString]];
-    }
-    if (!param) {
-        result(@{ @"success": @NO, @"code": @-1, @"message": @"Invalid wifi rfCode format" });
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters for addLockKey");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Invalid parameters"});
         return;
     }
+    
 
     // No notification observer registered; only SDK completion result will be returned.
 
@@ -550,6 +549,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
             NSString *lockMacOut = macOut ?: [mac lowercaseString];
             result(@{
                 @"success": @(ok),
+                @"isSuccessful": @(ok),
+                @"isError": @(!ok),
                 @"code": @((NSInteger)statusCode),
                 @"message": reason ?: @"",
                 @"lockMac": lockMacOut,

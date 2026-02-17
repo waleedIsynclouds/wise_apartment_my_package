@@ -936,7 +936,7 @@
     
     // AuthorMode: 1 = validity period, 2 = time period
     NSNumber *authorMode = action[@"authorMode"];
-    if (authorMode) params.authorMode = [authorMode intValue];
+    if (authorMode) params.authMode = [authorMode intValue];
     
     // ChangeID: key ID or user ID
     NSNumber *changeID = action[@"changeID"];
@@ -944,7 +944,7 @@
         [one error:@"INVALID_ARGUMENT" message:@"Missing changeID" details:nil];
         return;
     }
-    params.changeID = [changeID intValue];
+    params.changeId = [changeID intValue];
     
     // ChangeMode: 0x01 = by key ID, 0x02 = by user ID
     NSNumber *changeMode = action[@"changeMode"];
@@ -957,9 +957,9 @@
     NSNumber *dayStartTimes = action[@"dayStartTimes"];
     if (dayStartTimes) params.dayStartTimes = [dayStartTimes intValue];
     
-    // Timestamps
-    NSNumber *modifyTimestamp = action[@"modifyTimestamp"];
-    if (modifyTimestamp) params.modifyTimestamp = [modifyTimestamp longValue];
+//    // Timestamps
+//    NSNumber *modifyTimestamp = action[@"modifyTimestamp"];
+//    if (modifyTimestamp) params. = [modifyTimestamp longValue];
     
     NSNumber *validStartTime = action[@"validStartTime"];
     if (validStartTime) params.validStartTime = [validStartTime longValue];
@@ -969,7 +969,7 @@
     
     // Status and valid number
     NSNumber *status = action[@"status"];
-    if (status) params.status = [status intValue];
+    if (status) params.vaildNumber = [status intValue];
     
     NSNumber *vaildNumber = action[@"vaildNumber"];
     if (vaildNumber) params.vaildNumber = [vaildNumber intValue];
@@ -981,6 +981,7 @@
     NSString *lockMac = [PluginUtils lockMacFromArgs:args];
     if (lockMac) {
         lockMac = [lockMac lowercaseString];
+        params.lockMac = lockMac;
     } else {
         [one error:@"INVALID_ARGUMENT" message:@"Missing lockMac" details:nil];
         return;

@@ -176,7 +176,7 @@ class WiseApartment {
 
     if (oldPwd.isEmpty) throw ArgumentError('oldPassword is required');
 
-    if (!RegExp(r'^\d{6,12}\$').hasMatch(newPwd)) {
+    if (newPwd.length < 6 || newPwd.length > 12 ) {
       throw ArgumentError('newPassword must be 6-12 digits');
     }
 
