@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
 import 'package:wise_apartment/src/models/keys/add_lock_key_action_model.dart';
+import 'package:wise_apartment/src/models/keys/delete_lock_key_action_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'add_lock_key_screen.dart';
 
@@ -533,8 +534,9 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                                         await Clipboard.setData(
                                           ClipboardData(text: pretty),
                                         );
-                                        if (ctx.mounted)
+                                        if (ctx.mounted) {
                                           Navigator.of(ctx).pop();
+                                        }
                                         if (mounted) {
                                           ScaffoldMessenger.of(
                                             context,

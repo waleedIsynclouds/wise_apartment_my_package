@@ -177,7 +177,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
           left: 12,
           right: 12,
           top: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+          // bottom: MediaQuery.of(context).viewInsets.bottom + 12,
         ),
         child: SingleChildScrollView(
           child: Column(
