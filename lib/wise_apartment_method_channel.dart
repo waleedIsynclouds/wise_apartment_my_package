@@ -7,6 +7,7 @@ import 'wise_apartment_platform_interface.dart';
 import 'src/wise_status_store.dart';
 import 'src/models/keys/delete_lock_key_action_model.dart';
 import 'src/models/keys/change_key_pwd_action_model.dart';
+import 'src/models/keys/modify_key_action_model.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
@@ -435,6 +436,37 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     try {
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('changeLockKeyPwd', args);
+
+      if (result != null) {
+        try {
+          WiseStatusStore.setFromMap(result);
+        } catch (_) {}
+      }
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> modifyLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+
+    // Ensure `action` is populated from params
+    if (!args.containsKey('action')) {
+      if (params is ModifyKeyActionModel) {
+        args['action'] = params.toMap();
+      } else if (params is Map) {
+        args['action'] = params;
+      }
+    }
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('modifyLockKey', args);
 
       if (result != null) {
         try {

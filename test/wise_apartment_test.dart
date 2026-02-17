@@ -166,6 +166,14 @@ class MockWiseApartmentPlatform
   ) {
     return Future.value({});
   }
+
+  @override
+  Future<Map<String, dynamic>> modifyLockKey(
+    Map<String, dynamic> auth,
+    params,
+  ) {
+    return Future.value({});
+  }
 }
 
 void main() {

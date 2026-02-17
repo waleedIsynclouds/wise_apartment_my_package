@@ -75,6 +75,15 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     dynamic params,
   );
 
+  /// Modify the validity period of a lock key.
+  /// This command is only supported when bleProtoVer >= 0x0d (13).
+  /// `auth` contains DNA/auth fields; `params` may be a Map or a
+  /// `ModifyKeyActionModel` describing the operation.
+  Future<Map<String, dynamic>> modifyLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  );
+
   /// Deletes a lock key using provided auth and action parameters.
   /// Returns a Map describing the result (code/ackMessage/body...).
   Future<Map<String, dynamic>> deleteLockKey(

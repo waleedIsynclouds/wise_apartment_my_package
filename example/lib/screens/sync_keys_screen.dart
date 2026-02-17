@@ -9,6 +9,7 @@ import 'package:wise_apartment/src/models/keys/add_lock_key_action_model.dart';
 import 'package:wise_apartment/src/models/keys/delete_lock_key_action_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'add_lock_key_screen.dart';
+import 'edit_key_screen.dart';
 
 class SyncKeysScreen extends StatefulWidget {
   final Map<String, dynamic> auth;
@@ -314,28 +315,17 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
   }
 
   Future<void> _editKey(Map<String, dynamic> keyData) async {
-    // Navigate to AddLockKeyScreen with existing key data for editing
-    final defaults = AddLockKeyActionModel(
-      addedKeyType: keyData['keyType'] as int? ?? 0,
-      addedKeyID: keyData['lockKeyId'] as int? ?? 0,
-      addedKeyGroupId: keyData['keyGroupId'] as int? ?? 0,
-      validStartTime: keyData['validStartTime'] as int? ?? 0,
-      validEndTime: keyData['validEndTime'] as int? ?? 0,
-      vaildNumber: keyData['validNumber'] as int? ?? 255,
-      vaildMode: keyData['authMode'] as int? ?? 0,
-      week: keyData['week'] as int? ?? 0,
-      dayStartTimes: keyData['dayStartTimes'] as int? ?? 0,
-      dayEndTimes: keyData['dayEndTimes'] as int? ?? 0,
-    );
-
-    await Navigator.of(context).push(
+    // Open the EditKeyScreen which allows changing password and validity.
+    final res = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
-        builder: (_) => AddLockKeyScreen(auth: widget.auth, defaults: defaults),
+        builder: (_) => EditKeyScreen(auth: widget.auth, keyData: keyData),
       ),
     );
 
-    // Refresh keys after returning from edit
-    await _syncKeys();
+    // If changes were made, refresh keys
+    if (res != null && res.isNotEmpty) {
+      await _syncKeys();
+    }
   }
 
   Future<void> _showAddKeySheet() async {
@@ -493,6 +483,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                               itemBuilder: (context) => [
                                 const PopupMenuItem(
                                   value: 'edit',
+
                                   child: Row(
                                     children: [
                                       Icon(Icons.edit, size: 20),

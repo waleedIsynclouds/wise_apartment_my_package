@@ -6,6 +6,7 @@
 #import <HXJBLESDK/SHBLEHotelLockSystemParam.h>
 #import <HXJBLESDK/HXBLEDeviceStatus.h>
 #import <HXJBLESDK/HXKeyModel.h>
+#import <HXJBLESDK/HXModifyKeyTimeParams.h>
 
 #import "BleScanManager.h"
 #import "HxjBleClient.h"
@@ -906,6 +907,103 @@
     } @catch (NSException *exception) {
         NSLog(@"[BleLockManager] Exception calling changeLockKeyPwd: %@", exception);
         [one error:@"ERROR" message:exception.reason ?: @"Exception calling changeLockKeyPwd" details:nil];
+    }
+}
+
+- (void)modifyLockKey:(NSDictionary *)args result:(FlutterResult)result {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    if (![self validateArgs:args method:@"modifyLockKey" one:one]) return;
+
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSDictionary *action = args[@"action"];
+    if (![action isKindOfClass:[NSDictionary class]]) {
+        [one error:@"INVALID_ARGUMENT" message:@"Missing action map" details:nil];
+        return;
+    }
+
+    // Create HXModifyKeyTimeParams from action dictionary
+    HXModifyKeyTimeParams *params = [[HXModifyKeyTimeParams alloc] init];
+    
+    // AuthorMode: 1 = validity period, 2 = time period
+    NSNumber *authorMode = action[@"authorMode"];
+    if (authorMode) params.authorMode = [authorMode intValue];
+    
+    // ChangeID: key ID or user ID
+    NSNumber *changeID = action[@"changeID"];
+    if (!changeID) {
+        [one error:@"INVALID_ARGUMENT" message:@"Missing changeID" details:nil];
+        return;
+    }
+    params.changeID = [changeID intValue];
+    
+    // ChangeMode: 0x01 = by key ID, 0x02 = by user ID
+    NSNumber *changeMode = action[@"changeMode"];
+    if (changeMode) params.changeMode = [changeMode intValue];
+    
+    // Day times (valid when AuthMode=2)
+    NSNumber *dayEndTimes = action[@"dayEndTimes"];
+    if (dayEndTimes) params.dayEndTimes = [dayEndTimes intValue];
+    
+    NSNumber *dayStartTimes = action[@"dayStartTimes"];
+    if (dayStartTimes) params.dayStartTimes = [dayStartTimes intValue];
+    
+    // Timestamps
+    NSNumber *modifyTimestamp = action[@"modifyTimestamp"];
+    if (modifyTimestamp) params.modifyTimestamp = [modifyTimestamp longValue];
+    
+    NSNumber *validStartTime = action[@"validStartTime"];
+    if (validStartTime) params.validStartTime = [validStartTime longValue];
+    
+    NSNumber *validEndTime = action[@"validEndTime"];
+    if (validEndTime) params.validEndTime = [validEndTime longValue];
+    
+    // Status and valid number
+    NSNumber *status = action[@"status"];
+    if (status) params.status = [status intValue];
+    
+    NSNumber *vaildNumber = action[@"vaildNumber"];
+    if (vaildNumber) params.vaildNumber = [vaildNumber intValue];
+    
+    // Weeks (valid when AuthMode=2)
+    NSNumber *weeks = action[@"weeks"];
+    if (weeks) params.weeks = [weeks intValue];
+
+    NSString *lockMac = [PluginUtils lockMacFromArgs:args];
+    if (lockMac) {
+        lockMac = [lockMac lowercaseString];
+    } else {
+        [one error:@"INVALID_ARGUMENT" message:@"Missing lockMac" details:nil];
+        return;
+    }
+
+    @try {
+        [HXBluetoothLockHelper modifyKeyTime:params completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            
+            [self.bleClient disConnectBle:nil];
+
+            NSDictionary *resp = [self responseMapWithCode:statusCode
+                                                   message:reason
+                                                   lockMac:lockMac
+                                                      body:nil];
+            if (statusCode == KSHStatusCode_Success) {
+                [one success:resp];
+            } else {
+                [one error:@"FAILED" message:[NSString stringWithFormat:@"Code: %ld", (long)statusCode] details:resp];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling modifyLockKey: %@", exception);
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling modifyLockKey" details:nil];
     }
 }
 

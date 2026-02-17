@@ -187,6 +187,74 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.changeLockKeyPwd(args, actionMap);
   }
 
+  /// Modify the validity period of a lock key.
+  /// This command is only supported when bleProtoVer >= 0x0d (13).
+  /// Performs Dart-side validation before calling native platform code.
+  /// `auth` is the DNA/auth map required by native SDKs.
+  /// `params` can be a Map or a `ModifyKeyActionModel`.
+  Future<Map<String, dynamic>> modifyLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) {
+    final args = Map<String, dynamic>.from(auth);
+
+    Map<String, dynamic> actionMap;
+    if (params is Map<String, dynamic>) {
+      actionMap = Map<String, dynamic>.from(params);
+    } else {
+      try {
+        // attempt to call toMap if provided by a model
+        actionMap = Map<String, dynamic>.from((params as dynamic).toMap());
+      } catch (_) {
+        throw ArgumentError('params must be a Map or ModifyKeyActionModel');
+      }
+    }
+
+    // Basic validation
+    final authorMode = actionMap['authorMode'];
+    if (authorMode != null && authorMode != 1 && authorMode != 2) {
+      throw ArgumentError(
+        'authorMode must be 1 (validity period) or 2 (time period)',
+      );
+    }
+
+    final changeMode = actionMap['changeMode'];
+    if (changeMode != null && changeMode != 1 && changeMode != 2) {
+      throw ArgumentError('changeMode must be 1 (by key ID) or 2 (by user ID)');
+    }
+
+    final changeID = actionMap['changeID'];
+    if (changeID == null ||
+        (changeID is! int && int.tryParse(changeID.toString()) == null)) {
+      throw ArgumentError('changeID is required and must be an int');
+    }
+
+    // If using time period authorization (authorMode=2), validate day times
+    if (authorMode == 2) {
+      final dayStartTimes = actionMap['dayStartTimes'] ?? 0;
+      final dayEndTimes = actionMap['dayEndTimes'] ?? 1439;
+
+      if (dayStartTimes is int && dayEndTimes is int) {
+        if (dayStartTimes < 0 || dayStartTimes > 1439) {
+          throw ArgumentError(
+            'dayStartTimes must be 0-1439 (00:00-23:59 in minutes)',
+          );
+        }
+        if (dayEndTimes < 0 || dayEndTimes > 1439) {
+          throw ArgumentError(
+            'dayEndTimes must be 0-1439 (00:00-23:59 in minutes)',
+          );
+        }
+        if (dayStartTimes >= dayEndTimes) {
+          throw ArgumentError('dayStartTimes must be less than dayEndTimes');
+        }
+      }
+    }
+
+    args['action'] = actionMap;
+    return WiseApartmentPlatform.instance.modifyLockKey(args, actionMap);
+  }
+
   /// Synchronize keys on the lock. Returns a Map describing the sync result.
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.syncLockKey(auth);

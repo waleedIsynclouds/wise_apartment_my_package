@@ -10,6 +10,7 @@ export 'keys/lock_key_result.dart';
 export 'keys/add_lock_key_action_model.dart';
 export 'keys/delete_lock_key_action_model.dart';
 export 'keys/change_key_pwd_action_model.dart';
+export 'keys/modify_key_action_model.dart';
 
 // New unified models
 export 'lock_response.dart';

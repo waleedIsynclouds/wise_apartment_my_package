@@ -12,6 +12,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.DelLockKeyActio
 import com.example.hxjblinklibrary.blinkble.entity.reslut.AddLockKeyResult;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ChangeKeyPwdAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.ModifyKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
@@ -420,6 +421,78 @@ public class BleLockManager {
         } catch (Exception e) {
             Log.e(TAG, "changeLockKeyPwd failed", e);
             postResultError(result, "CHANGE_KEY_PWD_ERROR", e.getMessage(), null);
+        }
+    }
+
+    public void modifyLockKey(Map<String, Object> arguments, final Result result) {
+        if (bleClient == null) {
+            postResultError(result, "INIT_ERROR", "BLE client is null", null);
+            return;
+        }
+
+        try {
+            Map<String, Object> actionMap = (Map<String, Object>) arguments.get("action");
+            if (actionMap == null) {
+                postResultError(result, "INVALID_ARGUMENT", "Missing 'action' map", null);
+                return;
+            }
+
+            ModifyKeyAction action = new ModifyKeyAction();
+            
+            // AuthorMode: 1 = validity period, 2 = time period
+            action.setAuthorMode(parseInt(actionMap.get("authorMode"), 1));
+            
+            // ChangeID: key ID or user ID depending on changeMode
+            int changeID = parseInt(actionMap.get("changeID"), -1);
+            if (changeID == -1) {
+                postResultError(result, "INVALID_ARGUMENT", "Invalid changeID", null);
+                return;
+            }
+            action.setChangeID(changeID);
+            
+            // ChangeMode: 0x01 = by key ID, 0x02 = by user ID
+            action.setChangeMode(parseInt(actionMap.get("changeMode"), 1));
+            
+            // Day times (valid when AuthMode=2)
+            action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 1439));
+            action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
+            
+            // Timestamps
+            action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
+            action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
+            action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFFL));
+            
+            // Status and valid number
+            action.setStatus(parseInt(actionMap.get("status"), 0));
+            action.setVaildNumber(parseInt(actionMap.get("vaildNumber"), 0xFF));
+            
+            // Weeks (valid when AuthMode=2)
+            action.setWeeks(parseInt(actionMap.get("weeks"), 0x7F));
+            
+            action.setBaseAuthAction(PluginUtils.createAuthAction(arguments));
+
+            bleClient.modifyLockKey(action, new FunCallback<Object>() {
+                @Override
+                public void onResponse(Response<Object> response) {
+                    if (response.isSuccessful()) {
+                        result.success(responseToMap(response, null));
+                    } else {
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    result.error("ERROR", t.getMessage(), null);
+                }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "modifyLockKey failed", e);
+            postResultError(result, "MODIFY_KEY_ERROR", e.getMessage(), null);
         }
     }
 
