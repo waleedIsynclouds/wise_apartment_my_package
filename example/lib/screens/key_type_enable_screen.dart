@@ -74,7 +74,8 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen> {
 
       if (!mounted) return;
 
-      final success = response['success'] == true ||
+      final success =
+          response['success'] == true ||
           response['isSuccessful'] == true ||
           response['code'] == 0;
 
@@ -105,19 +106,14 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Key Type Enable/Disable'),
-      ),
+      appBar: AppBar(title: const Text('Key Type Enable/Disable')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -162,10 +158,7 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen> {
                   'Enabled',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
-                Switch(
-                  value: _isEnabled,
-                  onChanged: _toggleEnabled,
-                ),
+                Switch(value: _isEnabled, onChanged: _toggleEnabled),
               ],
             ),
             const SizedBox(height: 24),

@@ -331,10 +331,14 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     }
   }
 
-  Future<void> _toggleKeyEnabled(Map<String, dynamic> keyData, int index) async {
+  Future<void> _toggleKeyEnabled(
+    Map<String, dynamic> keyData,
+    int index,
+  ) async {
     final keyType = keyData['keyType'] as int? ?? 0;
-    final currentValidNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
-    
+    final currentValidNum =
+        keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
+
     // Determine new state: if currently enabled (>0), disable (0); if disabled, enable (255)
     final newValidNum = currentValidNum > 0 ? 0 : 255;
     final enabling = newValidNum > 0;
@@ -353,16 +357,15 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
 
       if (!mounted) return;
 
-      final success = response['success'] == true ||
+      final success =
+          response['success'] == true ||
           response['isSuccessful'] == true ||
           response['code'] == 0;
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              enabling ? 'Key type enabled' : 'Key type disabled',
-            ),
+            content: Text(enabling ? 'Key type enabled' : 'Key type disabled'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -471,182 +474,197 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
             ],
           ),
           body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Press Sync to retrieve keys from the lock using the plugin.',
-            ),
-            if (_loading || _statusMessage.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Card(
-                color: _loading ? Colors.blue.shade50 : Colors.grey.shade100,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Press Sync to retrieve keys from the lock using the plugin.',
+                ),
+                if (_loading || _statusMessage.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    color: _loading
+                        ? Colors.blue.shade50
+                        : Colors.grey.shade100,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_loading)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _statusMessage,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
+                          Row(
+                            children: [
+                              if (_loading)
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _statusMessage,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_chunksReceived > 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Chunks received: $_chunksReceived | Keys so far: ${_partialKeys.length}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                      if (_chunksReceived > 0) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Chunks received: $_chunksReceived | Keys so far: ${_partialKeys.length}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
 
-            const SizedBox(height: 12),
-            Expanded(
-              child: _syncedKeys == null
-                  ? const Center(child: Text('No keys yet'))
-                  : _syncedKeys!.isEmpty
-                  ? const Center(child: Text('No keys found'))
-                  : ListView.builder(
-                      itemCount: _syncedKeys!.length,
-                      itemBuilder: (context, index) {
-                        final keyData = _syncedKeys![index];
-                        final pretty = const JsonEncoder.withIndent(
-                          '  ',
-                        ).convert(keyData);
-                        final validNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
-                        final isEnabled = validNum > 0;
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _syncedKeys == null
+                      ? const Center(child: Text('No keys yet'))
+                      : _syncedKeys!.isEmpty
+                      ? const Center(child: Text('No keys found'))
+                      : ListView.builder(
+                          itemCount: _syncedKeys!.length,
+                          itemBuilder: (context, index) {
+                            final keyData = _syncedKeys![index];
+                            final pretty = const JsonEncoder.withIndent(
+                              '  ',
+                            ).convert(keyData);
+                            final validNum =
+                                keyData['validNumber'] as int? ??
+                                keyData['vaildNumber'] as int? ??
+                                255;
+                            final isEnabled = validNum > 0;
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          child: ListTile(
-                            title: Text('Key ${index + 1}'),
-                            subtitle: Text(
-                              'Type: ${keyData['keyType'] ?? 'unknown'}, '
-                              'ID: ${keyData['lockKeyId'] ?? 'N/A'}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Transform.scale(
-                                  scale: 0.8,
-                                  child: Switch(
-                                    value: isEnabled,
-                                    onChanged: _togglingKey ? null : (value) {
-                                      _toggleKeyEnabled(keyData, index);
-                                    },
-                                    activeColor: Colors.green,
-                                  ),
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              child: ListTile(
+                                title: Text('Key ${index + 1}'),
+                                subtitle: Text(
+                                  'Type: ${keyData['keyType'] ?? 'unknown'}, '
+                                  'ID: ${keyData['lockKeyId'] ?? 'N/A'}',
+                                  style: const TextStyle(fontSize: 12),
                                 ),
-                                PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  await _editKey(keyData);
-                                } else if (value == 'delete') {
-                                  await _deleteKey(keyData);
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'edit',
-
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.edit, size: 20),
-                                      SizedBox(width: 8),
-                                      Text('Edit'),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'delete',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.delete,
-                                        size: 20,
-                                        color: Colors.red,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Transform.scale(
+                                      scale: 0.8,
+                                      child: Switch(
+                                        value: isEnabled,
+                                        onChanged: _togglingKey
+                                            ? null
+                                            : (value) {
+                                                _toggleKeyEnabled(
+                                                  keyData,
+                                                  index,
+                                                );
+                                              },
+                                        activeColor: Colors.green,
                                       ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Delete',
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                              ],
-                            ),
-                            onTap: () async {
-                              await showDialog<void>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: Text('Key ${index + 1} Details'),
-                                  content: SingleChildScrollView(
-                                    child: SelectableText(pretty),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () async {
-                                        await Clipboard.setData(
-                                          ClipboardData(text: pretty),
-                                        );
-                                        if (ctx.mounted) {
-                                          Navigator.of(ctx).pop();
-                                        }
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Copied to clipboard',
-                                              ),
-                                            ),
-                                          );
+                                    ),
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) async {
+                                        if (value == 'edit') {
+                                          await _editKey(keyData);
+                                        } else if (value == 'delete') {
+                                          await _deleteKey(keyData);
                                         }
                                       },
-                                      child: const Text('Copy'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(),
-                                      child: const Text('Close'),
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.edit, size: 20),
+                                              SizedBox(width: 8),
+                                              Text('Edit'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.delete,
+                                                size: 20,
+                                                color: Colors.red,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Delete',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                                onTap: () async {
+                                  await showDialog<void>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text('Key ${index + 1} Details'),
+                                      content: SingleChildScrollView(
+                                        child: SelectableText(pretty),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(text: pretty),
+                                            );
+                                            if (ctx.mounted) {
+                                              Navigator.of(ctx).pop();
+                                            }
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Copied to clipboard',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          child: const Text('Copy'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(),
+                                          child: const Text('Close'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: _showAddKeySheet,
