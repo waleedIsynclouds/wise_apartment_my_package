@@ -501,44 +501,111 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
     // Build SHBLENetworkConfigParam.
     SHBLENetworkConfigParam *param = nil;
-    if ([wifiJson isKindOfClass:[NSString class]]) {
-        NSData *data = [((NSString *)wifiJson) dataUsingEncoding:NSUTF8StringEncoding];
-        if (data) {
-            NSError *jsonErr = nil;
-            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
-            if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
-                NSDictionary *m = (NSDictionary *)obj;
-                param = [[SHBLENetworkConfigParam alloc] init];
-                param.lockMac = [mac lowercaseString];
-                id ct = m[@"configType"];
-                if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
-                id ut = m[@"updateTokenId"];
-                if ([ut respondsToSelector:@selector(boolValue)]) param.updateTokenId = [ut boolValue];
-                id token = m[@"tokenId"];
-                if ([token isKindOfClass:[NSString class]]) param.tokenId = (NSString *)token;
-                id ssid = m[@"ssid"];
-                if ([ssid isKindOfClass:[NSString class]]) param.ssid = (NSString *)ssid;
-                id pwd = m[@"password"];
-                if ([pwd isKindOfClass:[NSString class]]) param.password = (NSString *)pwd;
-                id host = m[@"host"];
-                if ([host isKindOfClass:[NSString class]]) param.host = (NSString *)host;
-                id port = m[@"port"];
-                if ([port respondsToSelector:@selector(intValue)]) param.port = [port intValue];
-                id ag = m[@"autoGetIP"];
-                if ([ag respondsToSelector:@selector(boolValue)]) param.autoGetIP = [ag boolValue];
-                id ip = m[@"ip"];
-                if ([ip isKindOfClass:[NSString class]]) param.ip = (NSString *)ip;
-                id sub = m[@"subnetwork"];
-                if ([sub isKindOfClass:[NSString class]]) param.subnetwork = (NSString *)sub;
-                id router = m[@"routerIP"];
-                if ([router isKindOfClass:[NSString class]]) param.routerIP = (NSString *)router;
-            }
-        }
-    }
+        if ([wifiJson isKindOfClass:[NSString class]]) {
+            NSData *data = [((NSString *)wifiJson) dataUsingEncoding:NSUTF8StringEncoding];
+            if (data) {
+                NSError *jsonErr = nil;
+                id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
+                if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
+                    NSDictionary *m = (NSDictionary *)obj;
+                    param = [[SHBLENetworkConfigParam alloc] init];
+                    param.lockMac = [mac lowercaseString];
+                    id ct = m[@"configType"];
+                    if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
+                    id ut = m[@"updateTokenId"];
+                    if ([ut respondsToSelector:@selector(boolValue)]) param.updateTokenId = [ut boolValue];
+                    id token = m[@"tokenId"];
+                    if ([token isKindOfClass:[NSString class]]) param.tokenId = (NSString *)token;
+                    id ssid = m[@"ssid"];
+                    if ([ssid isKindOfClass:[NSString class]]) param.ssid = (NSString *)ssid;
+                    id pwd = m[@"password"];
+                    if ([pwd isKindOfClass:[NSString class]]) param.password = (NSString *)pwd;
+                    id host = m[@"host"];
+                    if ([host isKindOfClass:[NSString class]]) param.host = (NSString *)host;
+                    id port = m[@"port"];
+                    if ([port respondsToSelector:@selector(intValue)]) param.port = [port intValue];
+                    id ag = m[@"autoGetIP"];
+                    if ([ag respondsToSelector:@selector(boolValue)]) param.autoGetIP = [ag boolValue];
+                    id ip = m[@"ip"];
+                    if ([ip isKindOfClass:[NSString class]]) param.ip = (NSString *)ip;
+                    id sub = m[@"subnetwork"];
+                    if ([sub isKindOfClass:[NSString class]]) param.subnetwork = (NSString *)sub;
+                    id router = m[@"routerIP"];
+                    if ([router isKindOfClass:[NSString class]]) param.routerIP = (NSString *)router;
+                } else {
+                    // JSON parsing failed or not a dict — try legacy pipe-delimited quoted format
+                    // If the incoming string contains '|' it's likely the legacy pipe format — parse directly.
+                    NSString *rawWifi = (NSString *)wifiJson;
+                    NSString *unescaped = [rawWifi stringByReplacingOccurrencesOfString:@"\\\"" withString:@"\""];
+                    unescaped = [unescaped stringByReplacingOccurrencesOfString:@"\\\\" withString:@"\\"];
 
-    if (!params) {
-        NSLog(@"[WiseApartmentPlugin] Invalid parameters for addLockKey");
-        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Invalid parameters"});
+                    if ([unescaped containsString:@"|"]) {
+                        // First, try the RF code parser
+                        SHBLENetworkConfigParam *parsed = [self wa_parseRfCode:unescaped lockMac:mac];
+                        if (parsed != nil) {
+                            param = parsed;
+                        } else {
+                            // Robust fallback: strip braces, split on '|' and trim surrounding quotes
+                            NSString *trimmed = [unescaped stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                            if ([trimmed hasPrefix:@"{"] && [trimmed hasSuffix:@"}"]) {
+                                trimmed = [trimmed substringWithRange:NSMakeRange(1, trimmed.length - 2)];
+                            }
+
+                            NSArray<NSString *> *partsRaw = [trimmed componentsSeparatedByString:@"|"];
+                            NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithCapacity:partsRaw.count];
+                            for (NSString *p in partsRaw) {
+                                NSString *t = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                                if (t.length == 0) {
+                                    [parts addObject:@""]; continue;
+                                }
+                                // Remove surrounding double quotes or other quote-like characters
+                                NSCharacterSet *quotes = [NSCharacterSet characterSetWithCharactersInString:@"\"'“”`‘’"];
+                                while (t.length > 0 && [quotes characterIsMember:[t characterAtIndex:0]]) {
+                                    t = [t substringFromIndex:1];
+                                }
+                                while (t.length > 0 && [quotes characterIsMember:[t characterAtIndex:t.length - 1]]) {
+                                    t = [t substringToIndex:t.length - 1];
+                                }
+                                t = [t stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                                [parts addObject:t ?: @""];
+                            }
+
+                            if (parts.count >= 6) {
+                                param = [[SHBLENetworkConfigParam alloc] init];
+                                param.lockMac = [mac lowercaseString];
+                                // parts indices based on observed vendor format
+                                // 0: prefix, 1: updateToken (01/02), 2: ssid, 3: password, 4: tokenId, 5: configType, 6: host, 7: port, 8: ipMode, 9: ip, 10: subnet, 11: router
+                                if (parts.count > 1) param.updateTokenId = ([parts[1] isEqualToString:@"01"] || [[parts[1] lowercaseString] isEqualToString:@"true"]);
+                                if (parts.count > 5) param.configType = [parts[5] intValue];
+                                if (parts.count > 2) param.ssid = parts[2];
+                                if (parts.count > 3) param.password = parts[3];
+                                if (parts.count > 4) param.tokenId = parts[4];
+                                if (parts.count > 6) param.host = parts[6];
+                                if (parts.count > 7) param.port = [parts[7] intValue];
+                                if (parts.count > 8) param.autoGetIP = [parts[8] isEqualToString:@"0"]; // 0 => auto (DHCP)
+                                if (parts.count > 9) param.ip = parts[9];
+                                if (parts.count > 10) param.subnetwork = parts[10];
+                                if (parts.count > 11) param.routerIP = parts[11];
+
+                                NSLog(@"[WiseApartmentPlugin] Parsed legacy wifi: ssid=%@ host=%@ port=%@ token=%@", param.ssid ?: @"", param.host ?: @"", @(param.port), param.tokenId ?: @"");
+                            } else {
+                                NSLog(@"[WiseApartmentPlugin] handleRegisterWifi: wifi string not JSON and not recognized pipe format: %@", wifiJson);
+                            }
+                        }
+                    } else {
+                        // Not pipe-delimited — try RF parser as last resort
+                        SHBLENetworkConfigParam *parsed = [self wa_parseRfCode:(NSString *)wifiJson lockMac:mac];
+                        if (parsed != nil) param = parsed;
+                        else NSLog(@"[WiseApartmentPlugin] handleRegisterWifi: wifi string not JSON and not recognized: %@", wifiJson);
+                    }
+                }
+                }
+            }
+        
+
+    if (!param) {
+        NSLog(@"[WiseApartmentPlugin] Failed to parse WiFi configuration parameters");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Failed to parse WiFi configuration"});
         return;
     }
     

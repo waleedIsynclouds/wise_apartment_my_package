@@ -164,6 +164,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         serverPort: serverPortVal,
         configurationType: _configurationType,
         tokenId: tokenIdVal,
+        updateToken: "02"
       );
 
       final rfCode = wifiModel.toRfCodeString();
