@@ -1061,7 +1061,7 @@
         // Mode 2: By key type
         params.keyTypes = (KSHKeyType)keyType;
         // enable: bitmask of types to enable, 0 = disable all
-        params.enable = (validNumber > 0) ? keyType : 0;
+        params.enable = (validNumber > 0) ? 1 : 0;
         NSLog(@"[BleLockManager] Mode 2 (by key type): keyTypes=%d, enable=%d", keyType, params.enable);
     } else if (operationMod == 3) {
         // Mode 3: By user/key group ID
