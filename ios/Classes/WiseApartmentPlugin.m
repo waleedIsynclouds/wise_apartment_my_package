@@ -325,6 +325,22 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"addLockKey" isEqualToString:method]) {
         [self handleAddLockKey:args result:result];
     }
+
+    else if ([@"addLockKeyStream" isEqualToString:method]) {
+        NSLog(@"[WiseApartmentPlugin] handleAddLockKeyStream called with args: %@", args);
+        NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+
+        // Use streaming version only when EventChannel listener is active
+        if ([self.eventEmitter hasActiveListener]) {
+            NSLog(@"[WiseApartmentPlugin] EventChannel listener active - starting addLockKeyStream");
+            [self.lockManager addLockKeyStream:params eventEmitter:self.eventEmitter];
+            result(@{ @"streaming": @YES, @"message": @"addLockKeyStream started - listen to EventChannel" });
+        } else {
+            NSLog(@"[WiseApartmentPlugin] No EventChannel listener - falling back to non-streaming addLockKey");
+            // Fall back to the existing single-call behavior
+            [self handleAddLockKey:args result:result];
+        }
+    }
     else if ([@"deleteLockKey" isEqualToString:method]) {
         [self handleDeleteLockKey:args result:result];
     }

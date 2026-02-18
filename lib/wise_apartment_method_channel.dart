@@ -85,6 +85,27 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _wifiRegistrationStream!;
   }
 
+  Stream<Map<String, dynamic>>? _addLockKeyStream;
+
+  @override
+  Stream<Map<String, dynamic>> get addLockKeyStream {
+    _addLockKeyStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'addLockKeyChunk' ||
+            type == 'addLockKeyDone' ||
+            type == 'addLockKeyError') {
+          return m;
+        }
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _addLockKeyStream!;
+  }
+
+  // ignore: unused_element
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
     final dynamic mac = auth['mac'];
     if (mac is String && mac.isNotEmpty) {
@@ -153,6 +174,46 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
         WiseStatusStore.setFromMap(result);
       } catch (_) {}
       return result;
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> startAddLockKeyStream(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+
+    AddLockKeyActionModel actionModel;
+    if (params is AddLockKeyActionModel) {
+      actionModel = params;
+    } else if (params is Map) {
+      final dynamic maybeAction = params['action'];
+      if (maybeAction is Map) {
+        actionModel = AddLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(maybeAction),
+        );
+      } else {
+        actionModel = AddLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(params),
+        );
+      }
+    } else {
+      try {
+        actionModel = (params as AddLockKeyActionModel);
+      } catch (_) {
+        actionModel = AddLockKeyActionModel();
+      }
+    }
+
+    args['action'] = actionModel.toMap();
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('addLockKeyStream', args);
+      return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);
     }
@@ -418,14 +479,10 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     // But if called directly or differently, we add fallback logic like addLockKey.
 
     if (!args.containsKey('action')) {
-      ChangeKeyPwdActionModel actionModel;
       if (params is ChangeKeyPwdActionModel) {
-        actionModel = params;
+        args['action'] = params.toMap();
       } else if (params is Map) {
-        // Construct simply from map if available, or try casting
-        // Since we don't have a fromMap on ChangeKeyPwdActionModel yet,
-        // we can just use the map directly or enforce fields.
-        // But let's assume params is ALREADY the action map structure.
+        // params is already an action map
         args['action'] = params;
       }
     }

@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'sys_param_screen.dart';
@@ -493,11 +494,12 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               const SizedBox(height: 12),
               Center(
                 child: ElevatedButton.icon(
-                    onPressed: () async {
+                  onPressed: () async {
                     if (!mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => WifiRegistrationScreen(device: widget.device),
+                        builder: (_) =>
+                            WifiRegistrationScreen(device: widget.device),
                       ),
                     );
                   },

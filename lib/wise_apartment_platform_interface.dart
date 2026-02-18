@@ -1,6 +1,6 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:wise_apartment/src/models/hxj_bluetooth_device_model.dart';
-import 'package:wise_apartment/src/models/keys/change_key_pwd_action_model.dart';
+// (removed unused import)
 import 'wise_apartment_method_channel.dart';
 
 abstract class WiseApartmentPlatform extends PlatformInterface {
@@ -66,6 +66,22 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     Map<String, dynamic> auth,
     dynamic params,
   );
+
+  /// Starts a streaming add-key operation. When Flutter is listening to
+  /// the `addLockKeyStream` EventChannel, native will emit intermediate
+  /// progress events and the final result via the stream.
+  /// Returns an acknowledgement Map when the stream is started.
+  Future<Map<String, dynamic>> startAddLockKeyStream(
+    Map<String, dynamic> auth,
+    dynamic params,
+  );
+
+  /// Stream of add-key events (chunks, done, errors).
+  /// Event types:
+  /// - 'addLockKeyChunk'
+  /// - 'addLockKeyDone'
+  /// - 'addLockKeyError'
+  Stream<Map<String, dynamic>> get addLockKeyStream;
 
   /// Change/modify a key's password on the lock.
   /// `auth` contains DNA/auth fields; `params` may be a Map or a

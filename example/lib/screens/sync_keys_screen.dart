@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/wise_apartment.dart';
@@ -537,9 +538,12 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                         final pretty = const JsonEncoder.withIndent(
                           '  ',
                         ).convert(keyData);
-                        
+
                         // Calculate isEnabled locally
-                        final validNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
+                        final validNum =
+                            keyData['validNumber'] as int? ??
+                            keyData['vaildNumber'] as int? ??
+                            255;
 
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -558,12 +562,21 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                                     backgroundColor: Colors.green,
                                     foregroundColor: Colors.white,
                                     minimumSize: const Size(60, 32),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     textStyle: const TextStyle(fontSize: 12),
                                   ),
-                                  onPressed: _togglingKey ? null : () {
-                                    _toggleKeyEnabled(keyData, index, true);
-                                  },
+                                  onPressed: _togglingKey
+                                      ? null
+                                      : () {
+                                          _toggleKeyEnabled(
+                                            keyData,
+                                            index,
+                                            true,
+                                          );
+                                        },
                                   child: const Text('Enable'),
                                 ),
                                 const SizedBox(width: 4),
@@ -572,12 +585,21 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                                     backgroundColor: Colors.red.shade600,
                                     foregroundColor: Colors.white,
                                     minimumSize: const Size(60, 32),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     textStyle: const TextStyle(fontSize: 12),
                                   ),
-                                  onPressed: _togglingKey ? null : () {
-                                    _toggleKeyEnabled(keyData, index, false);
-                                  },
+                                  onPressed: _togglingKey
+                                      ? null
+                                      : () {
+                                          _toggleKeyEnabled(
+                                            keyData,
+                                            index,
+                                            false,
+                                          );
+                                        },
                                   child: const Text('Disable'),
                                 ),
                                 PopupMenuButton<String>(

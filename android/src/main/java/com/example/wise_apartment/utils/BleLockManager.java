@@ -46,6 +46,15 @@ public class BleLockManager {
     }
 
     /**
+     * Callback interface for addLockKey streaming events.
+     */
+    public interface AddLockKeyStreamCallback {
+        void onChunk(Map<String, Object> chunkEvent);
+        void onDone(Map<String, Object> doneEvent);
+        void onError(Map<String, Object> errorEvent);
+    }
+
+    /**
      * Callback interface for streaming getSysParam events.
      */
     public interface SysParamStreamCallback {
@@ -1028,6 +1037,106 @@ public class BleLockManager {
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling addLockKey", t);
             postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Streaming version of addLockKey which forwards intermediate responses
+     * to the provided callback. Plugin layer will deliver these to EventChannel.
+     */
+    public void addLockKeyStream(Map<String, Object> args, final AddLockKeyStreamCallback callback) {
+        Log.d(TAG, "addLockKeyStream called with args: " + args);
+        try {
+            AddLockKeyAction action = new AddLockKeyAction();
+
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            if (args != null && args.containsKey("action") && args.get("action") instanceof Map) {
+                Map actionMap = (Map) args.get("action");
+                try {
+                    action.setPassword(parseString(actionMap.get("password"), ""));
+                    action.setStatus(parseInt(actionMap.get("status"), 0));
+                    action.setLocalRemoteMode(parseInt(actionMap.get("localRemoteMode"), 0));
+                    action.setAuthorMode(parseInt(actionMap.get("authorMode"), 0));
+                    action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
+                    action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
+                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
+                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"), 0));
+                    action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
+                    action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
+                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));
+                    action.setWeek(parseInt(actionMap.get("week"), 0));
+                    action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
+                    action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 0));
+                    action.setVaildNumber(parseInt(actionMap.get("vaildNumber"), 0));
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid addLockKey action map", e);
+                    if (callback != null) {
+                        Map<String, Object> err = new HashMap<>();
+                        err.put("type", "addLockKeyError");
+                        err.put("message", "Invalid addLockKey action: " + e.getMessage());
+                        callback.onError(err);
+                    }
+                    return;
+                }
+            }
+
+            final AddLockKeyAction finalAction = action;
+            bleClient.addLockKey(finalAction, new FunCallback<AddLockKeyResult>() {
+                @Override
+                public void onResponse(Response<AddLockKeyResult> response) {
+                    try {
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("type", "addLockKeyChunk");
+                        event.put("code", response.code());
+                        event.put("isSuccessful", response.isSuccessful());
+                        event.put("ackMessage", WiseStatusCode.description(response.code()));
+
+                        if (response.body() != null) {
+                            Map<String, Object> bodyMap = objectToMap(response.body());
+                            event.put("body", bodyMap);
+                        } else {
+                            event.put("body", null);
+                        }
+
+                        if (callback != null) callback.onChunk(event);
+
+                        if (response.isSuccessful() && response.body() != null) {
+                            Map<String, Object> done = new HashMap<>(event);
+                            done.put("type", "addLockKeyDone");
+                            if (callback != null) callback.onDone(done);
+                        }
+                    } catch (Throwable t) {
+                        Log.e(TAG, "addLockKeyStream onResponse processing failed", t);
+                        if (callback != null) {
+                            Map<String, Object> err = new HashMap<>();
+                            err.put("type", "addLockKeyError");
+                            err.put("message", t.getMessage());
+                            callback.onError(err);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "addLockKeyStream failed", t);
+                    if (callback != null) {
+                        Map<String, Object> err = new HashMap<>();
+                        err.put("type", "addLockKeyError");
+                        err.put("message", t.getMessage());
+                        callback.onError(err);
+                    }
+                }
+            });
+
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling addLockKeyStream", t);
+            if (callback != null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("type", "addLockKeyError");
+                err.put("message", t.getMessage());
+                callback.onError(err);
+            }
         }
     }
 

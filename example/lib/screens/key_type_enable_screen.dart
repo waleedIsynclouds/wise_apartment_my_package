@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/wise_apartment.dart';
@@ -30,7 +31,6 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
   bool _isEnabledByUserId = true;
 
   @override
-
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
@@ -261,7 +261,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Enable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -278,7 +280,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Disable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
             ],
@@ -359,7 +363,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Enable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -376,7 +382,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Disable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
             ],
@@ -442,7 +450,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Enable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -459,7 +469,9 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
                           ),
                         )
                       : const Text('Disable'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
             ],

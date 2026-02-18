@@ -488,6 +488,51 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "addLockKeyStream":
+        if (lockManager != null) {
+          if (eventSink != null) {
+            lockManager.addLockKeyStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.AddLockKeyStreamCallback() {
+              @Override
+              public void onChunk(final Map<String, Object> chunkEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(chunkEvent);
+                  }
+                });
+              }
+
+              @Override
+              public void onDone(final Map<String, Object> doneEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(doneEvent);
+                  }
+                });
+              }
+
+              @Override
+              public void onError(final Map<String, Object> errorEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      eventSink.error(String.valueOf(errorEvent.get("code")), String.valueOf(errorEvent.get("message")), errorEvent);
+                    }
+                  }
+                });
+              }
+            });
+            safeResult.success(java.util.Collections.singletonMap("streaming", true));
+          } else {
+            // No event sink: fallback to non-streaming addLockKey
+            lockManager.addLockKey((Map<String, Object>) call.arguments, safeResult);
+          }
+        } else {
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
+        }
+        break;
       case "deleteLockKey":
         if (lockManager != null) {
           lockManager.deleteLockKey((Map<String, Object>) call.arguments, safeResult);

@@ -131,6 +131,16 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.addLockKey(auth, params);
   }
 
+  /// Start a streaming add-key operation. Must call `startAddLockKeyStream` on the
+  /// native side while listening to `addLockKeyStream` in Dart to receive
+  /// intermediate progress and final result events.
+  Future<Map<String, dynamic>> startAddLockKeyStream(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) {
+    return WiseApartmentPlatform.instance.startAddLockKeyStream(auth, params);
+  }
+
   /// Delete a key from the lock. `auth` should contain auth/DNA fields; `params`
   /// contains action-specific parameters required by the native SDK.
   /// Use DeleteLockKeyActionModel to build the params with proper validation.
@@ -269,6 +279,12 @@ class WiseApartment {
   /// - 'syncLockKeyError': { type, message, code }
   Stream<Map<String, dynamic>> get syncLockKeyStream {
     return WiseApartmentPlatform.instance.syncLockKeyStream;
+  }
+
+  /// Stream of add-key events emitted by native while performing an
+  /// interactive key addition (fingerprint/card/password flows).
+  Stream<Map<String, dynamic>> get addLockKeyStream {
+    return WiseApartmentPlatform.instance.addLockKeyStream;
   }
 
   /// Stream of system parameter events coming from native.

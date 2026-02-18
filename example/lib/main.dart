@@ -1,6 +1,6 @@
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code, unused_element
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
-// ignore_for_file: dead_code, unnecessary_null_aware_operator, unused_import, unused_field, unused_element
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:io' show Platform;

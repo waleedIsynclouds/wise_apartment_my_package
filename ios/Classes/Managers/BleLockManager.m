@@ -755,6 +755,102 @@
     }
 }
 
+// Streaming addLockKey: emits intermediate progress and final events via eventEmitter
+- (void)addLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[BleLockManager] addLockKeyStream called with args: %@", args);
+    if (!eventEmitter) {
+        NSLog(@"[BleLockManager] ✗ eventEmitter is nil");
+        return;
+    }
+
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": cfgErr.message ?: @"Configuration error", @"code": @(-1) }];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": @"mac is required", @"code": @(-1) }];
+        return;
+    }
+
+    NSDictionary *actionMap = [args[@"action"] isKindOfClass:[NSDictionary class]] ? args[@"action"] : @{};
+
+    HXBLEAddKeyBaseParams *addKeyParams = nil;
+    NSString *password = actionMap[@"password"];
+    int addedKeyType = [actionMap[@"addedKeyType"] intValue];
+
+    if (password && password.length > 0) {
+        HXBLEAddPasswordKeyParams *passwordParams = [[HXBLEAddPasswordKeyParams alloc] init];
+        passwordParams.key = password;
+        addKeyParams = passwordParams;
+    } else if (addedKeyType >= 2 && addedKeyType <= 4) {
+        HXBLEAddOtherKeyParams *otherParams = [[HXBLEAddOtherKeyParams alloc] init];
+        if (addedKeyType == 2) otherParams.keyType = KSHKeyType_Fingerprint;
+        else if (addedKeyType == 3) otherParams.keyType = KSHKeyType_Card;
+        else if (addedKeyType == 4) otherParams.keyType = KSHKeyType_RemoteControl;
+        NSString *cardId = actionMap[@"cardId"];
+        if (cardId && cardId.length > 0) otherParams.cardId = cardId;
+        addKeyParams = otherParams;
+    } else {
+        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": @"Invalid key type or missing password", @"code": @(-1) }];
+        return;
+    }
+
+    addKeyParams.lockMac = mac;
+    addKeyParams.keyGroupId = [actionMap[@"addedKeyGroupId"] intValue] ?: 900;
+    addKeyParams.vaildNumber = [actionMap[@"vaildNumber"] intValue] ?: 255;
+    addKeyParams.validStartTime = [actionMap[@"validStartTime"] longValue] ?: 0;
+    addKeyParams.validEndTime = [actionMap[@"validEndTime"] longValue] ?: 0xFFFFFFFF;
+    addKeyParams.authMode = [actionMap[@"vaildMode"] intValue] ?: 1;
+
+    __weak typeof(self) weakSelf = self;
+    @try {
+        [HXBluetoothLockHelper addKey:addKeyParams completionBlock:^(KSHStatusCode statusCode, NSString *reason, HXKeyModel *keyObj, int authTotal, int authCount) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            @try {
+                NSMutableDictionary *body = [NSMutableDictionary dictionary];
+                if (keyObj != nil) {
+                    NSDictionary *keyMap = [keyObj dicFromObject];
+                    if ([keyMap isKindOfClass:[NSDictionary class]]) body[@"keyObj"] = keyMap;
+                }
+                body[@"authTotal"] = @(authTotal);
+                body[@"authCount"] = @(authCount);
+                body[@"statusCode"] = @((int)statusCode);
+                body[@"lockMac"] = mac;
+
+                // Build a standardized response map (matches Android shape)
+                NSMutableDictionary *event = [[self responseMapWithCode:((int)statusCode) message:reason lockMac:mac body:body] mutableCopy];
+
+                // Intermediate or final handling
+                if (statusCode == KSHStatusCode_Success && keyObj != nil) {
+                    event[@"type"] = @"addLockKeyDone";
+                    [eventEmitter emitEvent:event];
+                    return;
+                } else if (statusCode != KSHStatusCode_Success) {
+                    event[@"type"] = @"addLockKeyError";
+                    [eventEmitter emitEvent:event];
+                    return;
+                }
+
+                // Otherwise emit intermediate chunk (verification in progress)
+                event[@"type"] = @"addLockKeyChunk";
+                [eventEmitter emitEvent:event];
+            } @catch (NSException *exception) {
+                [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": exception.reason ?: @"Exception in addKey callback", @"code": @(-1) }];
+            }
+        }];
+    } @catch (NSException *exception) {
+        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": exception.reason ?: @"Exception calling addKey", @"code": @(-1) }];
+    }
+}
+
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"syncLockTime" one:one]) return;

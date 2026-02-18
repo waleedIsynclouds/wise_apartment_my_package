@@ -70,6 +70,14 @@ class MockWiseApartmentPlatform
   }
 
   @override
+  Future<Map<String, dynamic>> startAddLockKeyStream(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) {
+    return Future.value({});
+  }
+
+  @override
   /*************  ✨ Windsurf Command ⭐  *************/
   /*******  a33f4824-019e-40ee-97ff-15ceb18c8035  *******/
   Future<Map<String, dynamic>> registerWifi(
@@ -151,6 +159,11 @@ class MockWiseApartmentPlatform
   }
 
   @override
+  Stream<Map<String, dynamic>> get addLockKeyStream {
+    return Stream.value({});
+  }
+
+  @override
   Future<Map<String, dynamic>> deleteLockKey(
     Map<String, dynamic> auth,
     params,
@@ -174,25 +187,39 @@ class MockWiseApartmentPlatform
   ) {
     return Future.value({});
   }
-  
+
   @override
-  Future<Map<String, dynamic>> enableKeyById({required Map<String, dynamic> auth, required int lockKeyId, required int keyType, required int userId, required bool enabled}) {
+  Future<Map<String, dynamic>> enableKeyById({
+    required Map<String, dynamic> auth,
+    required int lockKeyId,
+    required int keyType,
+    required int userId,
+    required bool enabled,
+  }) {
     // TODO: implement enableKeyById
     throw UnimplementedError();
   }
-  
+
   @override
-  Future<Map<String, dynamic>> enableKeyByType({required Map<String, dynamic> auth, required int keyTypeBitmask, required bool enabled}) {
+  Future<Map<String, dynamic>> enableKeyByType({
+    required Map<String, dynamic> auth,
+    required int keyTypeBitmask,
+    required bool enabled,
+  }) {
     // TODO: implement enableKeyByType
     throw UnimplementedError();
   }
-  
+
   @override
-  Future<Map<String, dynamic>> enableKeyByUserId({required Map<String, dynamic> auth, required int userId, required bool enabled}) {
+  Future<Map<String, dynamic>> enableKeyByUserId({
+    required Map<String, dynamic> auth,
+    required int userId,
+    required bool enabled,
+  }) {
     // TODO: implement enableKeyByUserId
     throw UnimplementedError();
   }
-  
+
   @override
   Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth) {
     // TODO: implement exitCmd

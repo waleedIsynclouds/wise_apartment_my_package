@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:flutter/services.dart';

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code, unnecessary_null_comparison
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:wise_apartment/src/models/wifi_registration_event.dart';
@@ -11,7 +12,8 @@ import 'package:wise_apartment/src/models/dna_info_model.dart';
 
 class WifiRegistrationScreen extends StatefulWidget {
   final DnaInfoModel device;
-  const WifiRegistrationScreen({Key? key, required this.device}) : super(key: key);
+  const WifiRegistrationScreen({Key? key, required this.device})
+    : super(key: key);
 
   @override
   State<WifiRegistrationScreen> createState() => _WifiRegistrationScreenState();
@@ -27,11 +29,16 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   // WiFi config parameters
   final _ssidController = TextEditingController(text: 'EASHAN');
   final _passwordController = TextEditingController(text: '12345678');
-  final _hostController = TextEditingController(text: ExampleConfig.defaultHost);
-  final _portController = TextEditingController(text: ExampleConfig.defaultPort);
+  final _hostController = TextEditingController(
+    text: ExampleConfig.defaultHost,
+  );
+  final _portController = TextEditingController(
+    text: ExampleConfig.defaultPort,
+  );
 
   // Configuration type and token update flag
-  WifiConfigurationType _configurationType = WifiConfigurationType.wifiAndServer;
+  WifiConfigurationType _configurationType =
+      WifiConfigurationType.wifiAndServer;
   bool _updateToken = true;
 
   @override
@@ -42,7 +49,6 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   }
 
   @override
-
   void dispose() {
     _streamSubscription?.cancel();
     _ssidController.dispose();
@@ -68,8 +74,10 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         if (type == 'wifiRegistration') {
           // Parse event into typed model
           final event = WifiRegistrationEvent.fromMap(eventMap);
-          
-          debugPrint('   ${event.statusEmoji} Status: ${event.statusHex} - ${event.statusMessage}');
+
+          debugPrint(
+            '   ${event.statusEmoji} Status: ${event.statusHex} - ${event.statusMessage}',
+          );
           debugPrint('   Module MAC: ${event.moduleMac}');
           debugPrint('   Lock MAC: ${event.lockMac}');
 
@@ -113,7 +121,8 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     if (event == null) return Colors.grey;
     if (event.isSuccess) return Colors.green;
     if (event.isError) return Colors.red;
-    if (event.isProgress) return event.status == 0x04 ? Colors.lightBlue : Colors.blue;
+    if (event.isProgress)
+      return event.status == 0x04 ? Colors.lightBlue : Colors.blue;
     return Colors.orange;
   }
 
@@ -141,12 +150,17 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
       final defaultPort = ExampleConfig.defaultPort;
 
       String tokenIdVal = '';
-      if (_configurationType == null || _configurationType != WifiConfigurationType.wifiOnly) {
-        final lockToken = await ApiService.instance.getLockTokenForDevice(widget.device);
+      if (_configurationType == null ||
+          _configurationType != WifiConfigurationType.wifiOnly) {
+        final lockToken = await ApiService.instance.getLockTokenForDevice(
+          widget.device,
+        );
         if (lockToken == null) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to get lock token; cannot register WiFi')),
+            const SnackBar(
+              content: Text('Failed to get lock token; cannot register WiFi'),
+            ),
           );
           setState(() => _loading = false);
           return;
@@ -154,8 +168,12 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         tokenIdVal = lockToken;
       }
 
-      final serverAddrVal = _hostController.text.trim().isEmpty ? defaultHost : _hostController.text.trim();
-      final serverPortVal = _portController.text.trim().isEmpty ? defaultPort : _portController.text.trim();
+      final serverAddrVal = _hostController.text.trim().isEmpty
+          ? defaultHost
+          : _hostController.text.trim();
+      final serverPortVal = _portController.text.trim().isEmpty
+          ? defaultPort
+          : _portController.text.trim();
 
       final wifiModel = WifiConfig(
         ssid: _ssidController.text.trim(),
@@ -164,7 +182,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         serverPort: serverPortVal,
         configurationType: _configurationType,
         tokenId: tokenIdVal,
-        updateToken: "02"
+        updateToken: "02",
       );
 
       final rfCode = wifiModel.toRfCodeString();
@@ -218,7 +236,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
       ),
       body: SingleChildScrollView(
         child: SizedBox(
-          height:  MediaQuery.of(context).size.height - kToolbarHeight,
+          height: MediaQuery.of(context).size.height - kToolbarHeight,
           child: Column(
             children: [
               // Current Status Card
@@ -248,7 +266,8 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   _latestEvent?.statusMessage ?? 'Not started',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: _getStatusColor(_latestEvent),
                                       ),
@@ -257,7 +276,9 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     '${_latestEvent!.statusHex} • ${_latestEvent!.statusName}',
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
                                 ],
                               ],
@@ -270,7 +291,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                   ),
                 ),
               ),
-          
+
               // WiFi Configuration Form
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -325,10 +346,14 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _startWifiRegistration,
                         icon: Icon(
-                          _loading ? Icons.hourglass_empty : Icons.wifi_tethering,
+                          _loading
+                              ? Icons.hourglass_empty
+                              : Icons.wifi_tethering,
                         ),
                         label: Text(
-                          _loading ? 'Registering...' : 'Start WiFi Registration',
+                          _loading
+                              ? 'Registering...'
+                              : 'Start WiFi Registration',
                         ),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -338,9 +363,9 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                   ],
                 ),
               ),
-          
+
               const SizedBox(height: 16),
-          
+
               // Status History
               Expanded(
                 child: _events.isEmpty
@@ -348,9 +373,9 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                         child: Text(
                           'No status updates yet.\nStart WiFi registration to see updates.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey,
-                              ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
                         ),
                       )
                     : Column(
@@ -363,7 +388,9 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                               children: [
                                 Text(
                                   'Status History (${_events.length})',
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 TextButton.icon(
                                   onPressed: _clearHistory,
@@ -376,16 +403,20 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                           const SizedBox(height: 8),
                           Expanded(
                             child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               itemCount: _events.length,
                               itemBuilder: (context, index) {
                                 final event = _events[index];
-          
+
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 8),
                                   child: ListTile(
                                     leading: CircleAvatar(
-                                      backgroundColor: _getStatusColor(event).withOpacity(0.2),
+                                      backgroundColor: _getStatusColor(
+                                        event,
+                                      ).withOpacity(0.2),
                                       child: Icon(
                                         _getStatusIcon(event),
                                         color: _getStatusColor(event),
@@ -396,16 +427,21 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                                       children: [
                                         Text(event.statusEmoji),
                                         const SizedBox(width: 8),
-                                        Expanded(child: Text(event.statusMessage)),
+                                        Expanded(
+                                          child: Text(event.statusMessage),
+                                        ),
                                       ],
                                     ),
                                     subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const SizedBox(height: 4),
                                         Text(
                                           '${event.statusHex} • ${event.statusName} • ${event.statusType}',
-                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                         Text(
                                           'Time: ${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}:${event.timestamp.second.toString().padLeft(2, '0')}',

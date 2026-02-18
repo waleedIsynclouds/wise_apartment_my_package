@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+// ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code, unused_element
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:wise_apartment/src/models/keys/change_key_pwd_action_model.dart';
@@ -132,7 +133,10 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
 
         final resp = await _plugin.changeLockKeyPwd(auth, change);
         results['changePwd'] = resp;
-        final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
+        final ok =
+            resp['success'] == true ||
+            resp['isSuccessful'] == true ||
+            resp['code'] == 0;
         if (ok) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -263,11 +267,19 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
       final newPwd = _newPwdController.text.trim();
       final oldPwd = _oldPwdController.text.trim();
       if (newPwd.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No new password provided')));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No new password provided')),
+          );
         return;
       }
       if (oldPwd.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide current password to change it')));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please provide current password to change it'),
+            ),
+          );
         return;
       }
 
@@ -279,17 +291,39 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
       );
 
       final resp = await _plugin.changeLockKeyPwd(auth, change);
-      final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
+      final ok =
+          resp['success'] == true ||
+          resp['isSuccessful'] == true ||
+          resp['code'] == 0;
       if (ok) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed successfully'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Password changed successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
           Navigator.of(context).pop({'changePwd': resp});
         }
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password change failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}'), backgroundColor: Colors.red));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Password change failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password change error: $e'), backgroundColor: Colors.red));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Password change error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
     } finally {
       setState(() => _saving = false);
     }
@@ -301,14 +335,30 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
     final auth = widget.auth;
     try {
       final originalStart = (widget.keyData['validStartTime'] as int?) ?? 0;
-      final originalEnd = (widget.keyData['validEndTime'] as int?) ?? 0xFFFFFFFF;
-      final newStartSec = _validStart != null ? (_validStart!.millisecondsSinceEpoch ~/ 1000) : 0;
-      final newEndSec = _validEnd != null ? (_validEnd!.millisecondsSinceEpoch ~/ 1000) : 0xFFFFFFFF;
-      final vnum = int.tryParse(_vaildNumberController.text.trim()) ?? (widget.keyData['validNumber'] as int? ?? 255);
+      final originalEnd =
+          (widget.keyData['validEndTime'] as int?) ?? 0xFFFFFFFF;
+      final newStartSec = _validStart != null
+          ? (_validStart!.millisecondsSinceEpoch ~/ 1000)
+          : 0;
+      final newEndSec = _validEnd != null
+          ? (_validEnd!.millisecondsSinceEpoch ~/ 1000)
+          : 0xFFFFFFFF;
+      final vnum =
+          int.tryParse(_vaildNumberController.text.trim()) ??
+          (widget.keyData['validNumber'] as int? ?? 255);
 
-      final changed = (newStartSec != originalStart) || (newEndSec != originalEnd) || (vnum != (widget.keyData['validNumber'] as int? ?? widget.keyData['vaildNumber'] as int? ?? 255));
+      final changed =
+          (newStartSec != originalStart) ||
+          (newEndSec != originalEnd) ||
+          (vnum !=
+              (widget.keyData['validNumber'] as int? ??
+                  widget.keyData['vaildNumber'] as int? ??
+                  255));
       if (!changed) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No validity changes detected')));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No validity changes detected')),
+          );
         setState(() => _saving = false);
         return;
       }
@@ -324,21 +374,50 @@ class _EditKeyScreenState extends State<EditKeyScreen> {
 
       final errors = modify.validate();
       if (errors.isNotEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Validation error: ${errors.first}'), backgroundColor: Colors.red));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Validation error: ${errors.first}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         setState(() => _saving = false);
         return;
       }
 
       final resp = await _plugin.modifyLockKey(auth, modify);
-      final ok = resp['success'] == true || resp['isSuccessful'] == true || resp['code'] == 0;
+      final ok =
+          resp['success'] == true ||
+          resp['isSuccessful'] == true ||
+          resp['code'] == 0;
       if (ok) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Validity updated'), backgroundColor: Colors.green));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Validity updated'),
+              backgroundColor: Colors.green,
+            ),
+          );
         Navigator.of(context).pop({'modifyKey': resp});
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Modify failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}'), backgroundColor: Colors.red));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Modify failed: ${resp['message'] ?? resp['ackMessage'] ?? resp}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Modify key error: $e'), backgroundColor: Colors.red));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Modify key error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
     } finally {
       setState(() => _saving = false);
     }
