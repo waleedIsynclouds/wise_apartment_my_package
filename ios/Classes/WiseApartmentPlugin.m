@@ -288,6 +288,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"closeLock" isEqualToString:method]) {
         [self handleCloseLock:args result:result];
     }
+    else if ([@"exitCmd" isEqualToString:method]) {
+        [self.lockManager exitCmd:args result:result];
+    }
     // WiFi Configuration
     else if ([@"regWifi" isEqualToString:method]) {
         [self handleRegisterWifi:args result:result];

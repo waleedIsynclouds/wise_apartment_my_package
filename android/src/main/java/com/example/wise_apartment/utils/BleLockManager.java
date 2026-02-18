@@ -1557,7 +1557,7 @@ public class BleLockManager {
                 action.setKeyIdEn(keyType);
                 Log.d(TAG, "[BleLockManager] Enabling key types: " + keyType + " with validNumber: " + validNumber);
             }
-
+            
             bleClient.enableLockKey(action, new FunCallback() {
                 @Override
                 public void onResponse(Response response) {

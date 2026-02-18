@@ -324,6 +324,17 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.getSysParam(auth);
   }
 
+  /// Exit/abort a long-running lock operation (sync, add-key, etc.).
+  /// Provide `auth` map containing `mac` (lock MAC) and optional auth fields.
+  Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.exitCmd(auth);
+  }
+
+  /// Convenience overload: call exitCmd with `lockMac` only.
+  Future<Map<String, dynamic>> exitCmdWithLockMac(String lockMac) {
+    return WiseApartmentPlatform.instance.exitCmd({'mac': lockMac});
+  }
+
   /// Enable or disable an individual key by its key ID (Operation Mode 1).
   /// This is the most specific way to enable/disable a single key.
   ///

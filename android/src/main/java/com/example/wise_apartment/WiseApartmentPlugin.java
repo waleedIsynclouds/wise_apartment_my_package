@@ -614,6 +614,37 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "exitCmd":
+        if (bleClient != null) {
+          try {
+            BlinkyAction action = new BlinkyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction((Map<String, Object>) call.arguments));
+            bleClient.abortCurrentCmd(action, new FunCallback() {
+              @Override
+              public void onResponse(Response response) {
+                try {
+                  Map<String, Object> details = new java.util.HashMap<>();
+                  details.put("code", response == null ? -1 : response.code());
+                  details.put("ackMessage", com.example.wise_apartment.utils.WiseStatusCode.description(response == null ? -1 : response.code()));
+                  safeResult.success(details);
+                } catch (Throwable t) {
+                  safeResult.error("FAILED", "exitCmd response processing failed: " + t.getMessage(), null);
+                }
+              }
+
+              @Override
+              public void onFailure(Throwable t) {
+                safeResult.error("ERROR", t.getMessage(), null);
+              }
+            });
+          } catch (Throwable t) {
+            Log.e(TAG, "exitCmd invocation failed", t);
+            safeResult.error("ERROR", "exitCmd invocation failed: " + t.getMessage(), null);
+          }
+        } else {
+          safeResult.error("INIT_ERROR", "BLE client not initialized", null);
+        }
+        break;
       default:
         safeResult.notImplemented();
         break;

@@ -278,6 +278,43 @@
     }
 }
 
+// Exit/abort long-running lock operation (sync, add-key, etc.)
+- (void)exitCmd:(NSDictionary *)args result:(FlutterResult)result {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    if (![self validateArgs:args method:@"exitCmd" one:one]) return;
+
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+
+    @try {
+        [HXBluetoothLockHelper exitCmdWithLockMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            @try {
+                NSDictionary *response = [self responseMapWithCode:statusCode message:reason lockMac:mac body:nil];
+                if (statusCode == KSHStatusCode_Success) {
+                    [one success:response];
+                } else {
+                    [one error:@"FAILED" message:reason ?: @"Exit command failed" details:response];
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[BleLockManager] Exception in exitCmd callback: %@", exception);
+                [one error:@"ERROR" message:exception.reason ?: @"Exception in exitCmd callback" details:nil];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling exitCmd: %@", exception);
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling exitCmd" details:nil];
+    }
+}
+
 /**
  * Get system parameters and status information from lock
  * Uses iOS SDK method: getDeviceStatusWithMac:completionBlock:

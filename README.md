@@ -752,3 +752,33 @@ For issues and feature requests, please contact the development team.
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## New API: Exit / Abort Command
+
+This release adds a cross-platform method to abort long-running Bluetooth lock operations
+(such as synchronization, adding keys, or long vendor commands).
+
+- Dart API:
+
+  - `Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth)` — call with a map
+    that contains at least `mac` (the lock MAC). Returns a response map with `code`,
+    `ackMessage`, and `isSuccessful`.
+
+  - `Future<Map<String, dynamic>> exitCmdWithLockMac(String lockMac)` — convenience wrapper.
+
+- Android: invokes `abortCurrentCmd` on the underlying HXJ BLE client; returns the
+  numeric code and ack message.
+
+- iOS: invokes `exitCmdWithLockMac:completionBlock:` from the HXJ SDK and returns
+  the `KSHStatusCode` and `reason` as part of the response map.
+
+Usage example:
+
+```dart
+final res = await wiseApartment.exitCmdWithLockMac('AA:BB:CC:11:22:33');
+if (res['isSuccessful'] == true) {
+  print('Exit command succeeded');
+} else {
+  print('Exit failed: ${res['ackMessage']}');
+}
+```

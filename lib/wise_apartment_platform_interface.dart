@@ -139,4 +139,9 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     required int userId,
     required bool enabled,
   });
+
+  /// Exit/abort a long-running lock operation (sync, add-key, etc.)
+  /// `auth` should contain at least the `mac` of the lock to abort.
+  /// Returns a Map with `code`, `ackMessage`, and optional `reason`.
+  Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth);
 }

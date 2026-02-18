@@ -570,6 +570,18 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth) async {
+    final args = Map<String, dynamic>.from(auth);
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('exitCmd', args);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
   Future<bool> _invokeBool(String method, [dynamic arguments]) async {
     try {
       final dynamic result = await methodChannel.invokeMethod<dynamic>(
