@@ -500,10 +500,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                     if (!mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => AddFingerprintScreen(
-                          device: widget.device,
-                          auth: auth,
-                        ),
+                        builder: (_) => AddFingerprintScreen(auth: auth),
                       ),
                     );
                   },

@@ -233,19 +233,6 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> startAddFingerprintKeyStream(
-    Map<String, dynamic> params,
-  ) async {
-    try {
-      final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('addFingerprintKeyStream', params);
-      return result ?? <String, dynamic>{};
-    } on PlatformException catch (e) {
-      throw WiseApartmentException(e.code, e.message, e.details);
-    }
-  }
-
-  @override
   Future<bool> disconnect({required String mac}) async {
     return _invokeBool('disconnect', {'mac': mac});
   }

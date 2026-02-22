@@ -11,8 +11,6 @@ class AddFingerprintScreen extends StatefulWidget {
     super.key,
     required this.auth,
     this.defaultKeyGroupId = 901,
-
-    required DnaInfoModel device,
   });
 
   @override
@@ -37,10 +35,8 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
   bool _isAdding = false;
   String _statusMessage = '';
   double _progress = 0.0;
-
-  // Sample Base64 fingerprint data (replace with actual scanner data)
-  final String _sampleFingerprintData =
-      "EgYAAFAgiVBCTVQAA/8BAQAVBQwDAAAH+AAAAgEA/wAAAAAAAAAAAAAAAQBDAAACFH8uggIPoVKBSCYzjBhCjyZLTzFHjDEjhA89cEA2uUsxeTMRZz4RgQ4NqUYNvQoijAgwTwgYTkBIb0NPbkFCrz0NZB4diDoQpUQInTgQhDkOfZIGAUBCAD29ooIBt4IcmOwV4fTk5eXT08bEs6Ojk4SEc2ZFRTMjJCMTE8GCAY0MAA4ADgAAAAA";
+  int _authTotal = 0;
+  int _authCount = 0;
 
   @override
   void initState() {
@@ -49,7 +45,7 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
     // Initialize action model for fingerprint (authorMode=0, addedKeyType=fingerprint)
     _actionModel = AddLockKeyActionModel(
-      authorMode: 0, // Enter fingerprint reading mode
+      authorMode: 0, // Enter fingerprint reading mode on lock
       addedKeyType: AddLockKeyActionModel.addedFingerprint, // Fingerprint = 1
       addedKeyGroupId: widget.defaultKeyGroupId,
       localRemoteMode: 1,
@@ -78,8 +74,10 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
     setState(() {
       _isAdding = true;
-      _statusMessage = 'Initializing...';
+      _statusMessage = 'Initializing fingerprint enrollment...';
       _progress = 0.0;
+      _authTotal = 0;
+      _authCount = 0;
     });
 
     try {
@@ -134,46 +132,60 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
         }
         return;
       }
-
-      // Build request with validated params
+      // - use addLockKeyStream for fingerprint enrollment
       final request = {
         ...widget.auth,
-        'fingerprintData': _sampleFingerprintData,
-        'keyGroupId': _actionModel.addedKeyGroupId,
-        'keyType': _actionModel.addedKeyType,
-        // Include all validated time params from action model
-        'authMode': _actionModel.authorMode ?? 0,
-        'validStartTime': _actionModel.validStartTime,
-        'validEndTime': _actionModel.validEndTime,
-        'validNumber': _actionModel.vaildNumber,
-        'weeks': _actionModel.week,
-        'dayStartTimes': _actionModel.dayStartTimes,
-        'dayEndTimes': _actionModel.dayEndTimes,
-        'vaildMode': _actionModel.vaildMode,
+        'action': _actionModel.toMap(), // Send action model with authorMode=0
       };
 
-      log('[AddFingerprintScreen] Starting fingerprint addition: $request');
+      log('[AddFingerprintScreen] Starting fingerprint enrollment: $request');
 
-      // Start listening to the stream
-      final stream = _plugin.addFingerprintKeyStream;
+      // Start listening to the addLockKey stream
+      final stream = _plugin.addLockKeyStream;
       final streamSubscription = stream.listen(
         (event) {
           log('[AddFingerprintScreen] Stream event: $event');
 
           final type = event['type'] as String?;
           final message = event['message'] as String? ?? '';
-          final progress = (event['progress'] as num?)?.toDouble() ?? 0.0;
+          final body = event['body'] as Map<String, dynamic>?;
+
+          // Extract authTotal and authCount from response body
+          if (body != null) {
+            _authTotal = (body['authTotal'] as num?)?.toInt() ?? _authTotal;
+            _authCount = (body['authCount'] as num?)?.toInt() ?? _authCount;
+          }
+
+          // Calculate progress based on enrollment steps
+          double progress = 0.0;
+          if (_authTotal > 0) {
+            progress = _authCount / _authTotal;
+          }
 
           setState(() {
-            _statusMessage = message;
             _progress = progress;
+
+            // Build progress message
+            if (type == 'addLockKeyChunk' && _authTotal > 0) {
+              if (_authTotal == 255) {
+                // Special case: unlimited/unknown scans
+                _statusMessage = 'Please place finger on sensor ($_authCount)';
+              } else {
+                // Normal case: show progress (e.g., "2/3")
+                _statusMessage =
+                    'Please place finger on sensor ($_authCount/$_authTotal)';
+              }
+            } else {
+              _statusMessage = message;
+            }
           });
 
           if (type == 'addLockKeyDone') {
-            // Success!
+            // Success - all fingerprint scans completed!
             setState(() {
               _isAdding = false;
-              _statusMessage = 'Fingerprint added successfully!';
+              _statusMessage =
+                  'Fingerprint enrolled successfully! ($_authCount/$_authTotal)';
               _progress = 1.0;
             });
 
@@ -200,8 +212,8 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
         },
       );
 
-      // Start the stream operation
-      await _plugin.startAddFingerprintKeyStream(request);
+      // Start the addLockKey stream operation
+      await _plugin.startAddLockKeyStream(widget.auth, _actionModel);
     } catch (e) {
       log('[AddFingerprintScreen] Exception: $e');
       setState(() {
@@ -222,6 +234,30 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
           children: [
             // Fingerprint icon
             const Icon(Icons.fingerprint, size: 80, color: Colors.blue),
+            const SizedBox(height: 16),
+
+            // Instruction card
+            Card(
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'You will be prompted to scan your fingerprint multiple times. Keep your finger on the sensor until each scan completes.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
 
             // User ID input
@@ -394,8 +430,18 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
               Text(
                 _statusMessage,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              const SizedBox(height: 4),
+              if (_authTotal > 0)
+                Text(
+                  'Enrollment Progress: $_authCount/$_authTotal scans',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                ),
               Text(
                 '${(_progress * 100).toStringAsFixed(0)}%',
                 textAlign: TextAlign.center,

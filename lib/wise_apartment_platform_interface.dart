@@ -87,19 +87,7 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// the `bleEventStream` EventChannel, native will emit intermediate progress events
   /// and the final result via the stream.
   ///
-  /// Required params:
-  /// - fingerprintData: Base64-encoded fingerprint feature data
-  /// - keyGroupId: User ID (900-4095)
-  /// - keyType: Key type (usually 2 for fingerprint)
-  /// - Plus auth fields: authCode, dnaKey, bleProtocolVer, mac, etc.
-  /// - Plus validity params: authMode, validStartTime, validEndTime, validNumber, etc.
-  ///
-  /// Returns an acknowledgement Map when the stream is started.
-  Future<Map<String, dynamic>> startAddFingerprintKeyStream(
-    Map<String, dynamic> params,
-  );
-
-  /// Stream of BLE events (WiFi registration, fingerprint addition, etc.)
+  /// Stream of BLE events (WiFi registration, key addition, etc.)
   Stream<Map<String, dynamic>> get bleEventStream;
 
   /// Change/modify a key's password on the lock.

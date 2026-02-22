@@ -141,26 +141,6 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.startAddLockKeyStream(auth, params);
   }
 
-  /// Start a streaming fingerprint addition operation. Must call `startAddFingerprintKeyStream`
-  /// while listening to `addFingerprintKeyStream` to receive progress and final result events.
-  ///
-  /// Required params:
-  /// - fingerprintData: Base64-encoded fingerprint feature data
-  /// - keyGroupId: User ID (900-4095)
-  /// - keyType: Key type (usually 2 for fingerprint)
-  /// - Validity parameters: authMode, validStartTime, validEndTime, validNumber, weeks, etc.
-  Future<Map<String, dynamic>> startAddFingerprintKeyStream(
-    Map<String, dynamic> params,
-  ) {
-    return WiseApartmentPlatform.instance.startAddFingerprintKeyStream(params);
-  }
-
-  /// Stream of fingerprint addition events (progress, completion, errors).
-  /// Listen to this stream after calling `startAddFingerprintKeyStream`.
-  Stream<Map<String, dynamic>> get addFingerprintKeyStream {
-    return WiseApartmentPlatform.instance.bleEventStream;
-  }
-
   /// Delete a key from the lock. `auth` should contain auth/DNA fields; `params`
   /// contains action-specific parameters required by the native SDK.
   /// Use DeleteLockKeyActionModel to build the params with proper validation.

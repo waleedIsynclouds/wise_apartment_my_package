@@ -1064,7 +1064,7 @@ public class BleLockManager {
                     action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
                     action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
-                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"), 0));
+                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"), 901));  // User keys use 901
                     action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
                     action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
                     action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));
@@ -1089,25 +1089,67 @@ public class BleLockManager {
                 @Override
                 public void onResponse(Response<AddLockKeyResult> response) {
                     try {
+                        Log.d(TAG, "addLockKey response - code: " + response.code() + ", isSuccessful: " + response.isSuccessful());
+                        
                         Map<String, Object> event = new HashMap<>();
-                        event.put("type", "addLockKeyChunk");
                         event.put("code", response.code());
                         event.put("isSuccessful", response.isSuccessful());
                         event.put("ackMessage", WiseStatusCode.description(response.code()));
 
+                        Map<String, Object> bodyMap = null;
                         if (response.body() != null) {
-                            Map<String, Object> bodyMap = objectToMap(response.body());
+                            bodyMap = objectToMap(response.body());
                             event.put("body", bodyMap);
                         } else {
                             event.put("body", null);
                         }
 
-                        if (callback != null) callback.onChunk(event);
-
-                        if (response.isSuccessful() && response.body() != null) {
-                            Map<String, Object> done = new HashMap<>(event);
-                            done.put("type", "addLockKeyDone");
-                            if (callback != null) callback.onDone(done);
+                        // Handle errors first
+                        if (!response.isSuccessful()) {
+                            Log.d(TAG, "addLockKey error - emitting addLockKeyError");
+                            event.put("type", "addLockKeyError");
+                            event.put("message", WiseStatusCode.description(response.code()));
+                            if (callback != null) callback.onError(event);
+                            return;
+                        }
+                        
+                        // Success: Check if enrollment is complete (matching iOS demo pattern)
+                        // Extract authTotal and authCount from response body
+                        int authTotal = 0;
+                        int authCount = 0;
+                        if (bodyMap != null) {
+                            if (bodyMap.containsKey("authTotal")) {
+                                authTotal = parseInt(bodyMap.get("authTotal"), 0);
+                            }
+                            if (bodyMap.containsKey("authCount")) {
+                                authCount = parseInt(bodyMap.get("authCount"), 0);
+                            }
+                        }
+                        
+                        Log.d(TAG, "addLockKey - authTotal: " + authTotal + ", authCount: " + authCount);
+                        
+                        if (authTotal > 0 && authTotal == authCount) {
+                            // All fingerprint scans completed - key fully enrolled
+                            Log.d(TAG, "Enrollment complete (" + authCount + "/" + authTotal + ") - emitting addLockKeyDone");
+                            event.put("type", "addLockKeyDone");
+                            if (callback != null) callback.onDone(event);
+                        } else if (authTotal > 0) {
+                            // Still need more fingerprint scans - emit progress chunk
+                            String progressMsg;
+                            if (authTotal == 255) {
+                                progressMsg = "Please enroll fingerprint (" + authCount + ")";
+                            } else {
+                                progressMsg = "Please enroll fingerprint (" + authCount + "/" + authTotal + ")";
+                            }
+                            Log.d(TAG, "Enrollment in progress - " + progressMsg);
+                            event.put("type", "addLockKeyChunk");
+                            event.put("message", progressMsg);
+                            if (callback != null) callback.onChunk(event);
+                        } else {
+                            // No authTotal/authCount (password key or single-step key) - complete immediately
+                            Log.d(TAG, "Single-step key added - emitting addLockKeyDone");
+                            event.put("type", "addLockKeyDone");
+                            if (callback != null) callback.onDone(event);
                         }
                     } catch (Throwable t) {
                         Log.e(TAG, "addLockKeyStream onResponse processing failed", t);
@@ -1628,97 +1670,6 @@ public class BleLockManager {
         } catch (Throwable t) {
             Map<String, Object> err = new HashMap<>();
             err.put("type", "sysParamError");
-            err.put("message", t.getMessage());
-            callback.onError(err);
-        }
-    }
-
-    /**
-     * Streaming version for adding big data keys (fingerprint/face).
-     * Uses AddBigDataKeyHelper to chunk data and emit progress events.
-     */
-    public void addFingerprintKeyStream(Map<String, Object> args, final AddLockKeyStreamCallback callback) {
-        Log.d(TAG, "addFingerprintKeyStream called with args: " + args);
-        
-        try {
-            // Extract parameters
-            String fingerprintData = parseString(args.get("fingerprintData"), "");
-            if (fingerprintData.isEmpty()) {
-                Map<String, Object> err = new HashMap<>();
-                err.put("type", "addLockKeyError");
-                err.put("message", "Fingerprint data is required");
-                callback.onError(err);
-                return;
-            }
-            
-            int keyGroupId = parseInt(args.get("keyGroupId"), 901);
-            int keyType = parseInt(args.get("keyType"), KeyType.FINGER);
-            
-            BlinkyAuthAction authAction = PluginUtils.createAuthAction(args);
-            
-            // Build time param
-            BLEKeyValidTimeParam timeParam = new BLEKeyValidTimeParam();
-            timeParam.authMode = parseInt(args.get("authMode"), 1);
-            timeParam.validStartTime = parseLong(args.get("validStartTime"), 0L);
-            timeParam.validEndTime = parseLong(args.get("validEndTime"), 0xFFFFFFFFL);
-            timeParam.validNumber = parseInt(args.get("validNumber"), 0xFF);
-            timeParam.weeks = parseInt(args.get("weeks"), 0x7F);
-            timeParam.dayStartTimes = parseInt(args.get("dayStartTimes"), 0);
-            timeParam.dayEndTimes = parseInt(args.get("dayEndTimes"), 1439);
-            
-            // Create helper and start
-            AddBigDataKeyHelper helper = new AddBigDataKeyHelper(null, bleClient);
-            helper.startWithBigDataBase64Str(
-                fingerprintData,
-                authAction.getMac(),
-                keyGroupId,
-                keyType,
-                timeParam,
-                authAction,
-                new AddBigDataKeyHelper.SendBigKeyDataCallback() {
-                    @Override
-                    public void onProgress(int statusCode, String message, int phase, double progress) {
-                        Map<String, Object> event = new HashMap<>();
-                        event.put("type", "addLockKeyChunk");
-                        event.put("code", statusCode);
-                        event.put("message", message);
-                        event.put("phase", phase);
-                        event.put("progress", progress);
-                        callback.onChunk(event);
-                    }
-                    
-                    @Override
-                    public void onComplete(int statusCode, String message, LockKeyResult keyResult) {
-                        Map<String, Object> event = new HashMap<>();
-                        event.put("type", "addLockKeyDone");
-                        event.put("code", statusCode);
-                        event.put("message", message);
-                        event.put("isSuccessful", true);
-                        event.put("progress", 1.0);
-                        
-                        if (keyResult != null) {
-                            Map<String, Object> bodyMap = objectToMap(keyResult);
-                            event.put("body", bodyMap);
-                        }
-                        
-                        callback.onDone(event);
-                    }
-                    
-                    @Override
-                    public void onError(int statusCode, String message) {
-                        Map<String, Object> event = new HashMap<>();
-                        event.put("type", "addLockKeyError");
-                        event.put("code", statusCode);
-                        event.put("message", message);
-                        callback.onError(event);
-                    }
-                }
-            );
-            
-        } catch (Throwable t) {
-            Log.e(TAG, "Exception in addFingerprintKeyStream", t);
-            Map<String, Object> err = new HashMap<>();
-            err.put("type", "addLockKeyError");
             err.put("message", t.getMessage());
             callback.onError(err);
         }

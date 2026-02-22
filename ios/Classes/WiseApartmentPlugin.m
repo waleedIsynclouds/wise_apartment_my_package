@@ -325,20 +325,6 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"addLockKey" isEqualToString:method]) {
         [self handleAddLockKey:args result:result];
     }
-
-    else if ([@"addFingerprintKeyStream" isEqualToString:method]) {
-        NSLog(@"[WiseApartmentPlugin] handleAddFingerprintKeyStream called with args: %@", args);
-        
-        // Check: only proceed if we have an active EventChannel listener
-        if (![self.eventEmitter hasActiveListener]) {
-            NSLog(@"[WiseApartmentPlugin] ✗ EventChannel listener NOT active - cannot stream");
-            result(@{ @"error": @"NO_LISTENER", @"message": @"EventChannel listener not attached" });
-        } else {
-            NSLog(@"[WiseApartmentPlugin] EventChannel listener active - starting addFingerprintKeyStream");
-            [self.lockManager addFingerprintKeyStream:args eventEmitter:self.eventEmitter];
-            result(@{ @"streaming": @YES, @"message": @"addFingerprintKeyStream started - listen to EventChannel" });
-        }
-    }
     else if ([@"addLockKeyStream" isEqualToString:method]) {
         NSLog(@"[WiseApartmentPlugin] handleAddLockKeyStream called with args: %@", args);
         NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
