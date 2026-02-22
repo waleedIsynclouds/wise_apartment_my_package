@@ -649,7 +649,29 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
+const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final auth = widget.device.toMap();
+                    if (!mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AddFingerprintScreen(
+                          device: widget.device,
+                          auth: auth,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Add Fingerprint'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
               // const SizedBox(height: 24),
             ],
           ),

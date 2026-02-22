@@ -26,9 +26,9 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   List<WifiRegistrationEvent> _events = [];
   WifiRegistrationEvent? _latestEvent;
 
-  // WiFi config parameters
-  final _ssidController = TextEditingController(text: 'EASHAN');
-  final _passwordController = TextEditingController(text: '12345678');
+  // WiFi config parametersd
+  final _ssidController = TextEditingController(text: 'LAVUI_4G');
+  final _passwordController = TextEditingController(text: 'Lavui@112');
   final _hostController = TextEditingController(
     text: ExampleConfig.defaultHost,
   );
