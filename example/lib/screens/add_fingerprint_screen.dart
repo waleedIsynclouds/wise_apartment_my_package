@@ -45,7 +45,7 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
   void initState() {
     super.initState();
     _keyGroupIdController.text = widget.defaultKeyGroupId.toString();
-    
+
     // Initialize action model for fingerprint (authorMode=0, addedKeyType=fingerprint)
     _actionModel = AddLockKeyActionModel(
       authorMode: 0, // Enter fingerprint reading mode
@@ -54,7 +54,7 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
       localRemoteMode: 1,
       status: 0,
     );
-    
+
     // Apply permanent validity by default
     _actionModel.applyPermanent(groupId: widget.defaultKeyGroupId);
   }
@@ -108,7 +108,7 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
             (_dailyStart?.hour ?? 9) * 60 + (_dailyStart?.minute ?? 0);
         final dailyEndMinutes =
             (_dailyEnd?.hour ?? 21) * 60 + (_dailyEnd?.minute ?? 0);
-        
+
         _actionModel.applyCycle(
           days: _selectedWeekDays,
           dailyStartMinutes: dailyStartMinutes,
@@ -127,9 +127,9 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
           _statusMessage = 'Validation error: $e';
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Validation failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Validation failed: $e')));
         }
         return;
       }
