@@ -11,6 +11,7 @@ class AddFingerprintScreen extends StatefulWidget {
     super.key,
     required this.auth,
     this.defaultKeyGroupId = 901,
+
     required DnaInfoModel device,
   });
 

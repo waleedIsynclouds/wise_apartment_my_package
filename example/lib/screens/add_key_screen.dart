@@ -77,6 +77,7 @@ class _AddKeyScreenState extends State<AddKeyScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Invalid JSON')));
       setState(() => _busy = false);
+
       return;
     }
 
