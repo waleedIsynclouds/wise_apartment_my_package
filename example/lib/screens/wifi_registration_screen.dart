@@ -39,7 +39,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   // Configuration type and token update flag
   WifiConfigurationType _configurationType =
       WifiConfigurationType.wifiAndServer;
-  bool _updateToken = true;
+  bool _updateToken = false;
 
   @override
   void initState() {
@@ -182,7 +182,7 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         serverPort: serverPortVal,
         configurationType: _configurationType,
         tokenId: tokenIdVal,
-        updateToken: "02",
+        updateToken: "01",
       );
 
       final rfCode = wifiModel.toRfCodeString();
