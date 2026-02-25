@@ -935,6 +935,61 @@
 
     __weak typeof(self) weakSelf = self;
     @try {
+        // Add observer for SDK WiFi network config notifications so we can stream
+        // intermediate RF-sign/WiFi status updates to Flutter via eventEmitter.
+        __block id obs = nil;
+        obs = [[NSNotificationCenter defaultCenter] addObserverForName:KSHNotificationWiFiNetworkConfig
+                                                              object:nil
+                                                               queue:[NSOperationQueue mainQueue]
+                                                          usingBlock:^(NSNotification *notification) {
+            @try {
+                id notificationObject = notification.object;
+                if (![notificationObject isKindOfClass:[SHWiFiNetworkConfigReportParam class]]) return;
+                SHWiFiNetworkConfigReportParam *param = (SHWiFiNetworkConfigReportParam *)notificationObject;
+
+                int wifiStatus = param.wifiStatus;
+                NSString *rfModuleMac = param.rfModuleMac ?: @"";
+                NSString *lockMac = param.lockMac ?: @"";
+
+                NSString *statusMessage;
+                switch (wifiStatus) {
+                    case 0x02: statusMessage = @"Network distribution binding in progress"; break;
+                    case 0x04: statusMessage = @"WiFi module connected to router"; break;
+                    case 0x05: statusMessage = @"WiFi module connected to cloud (success)"; break;
+                    case 0x06: statusMessage = @"Incorrect password"; break;
+                    case 0x07: statusMessage = @"WiFi configuration timeout"; break;
+                    case 0x08: statusMessage = @"Device failed to connect to server"; break;
+                    case 0x09: statusMessage = @"Device not authorized"; break;
+                    default: statusMessage = [NSString stringWithFormat:@"Unknown status: 0x%02x", wifiStatus]; break;
+                }
+
+                // Emit WiFi registration event
+                NSMutableDictionary *wifiEvent = [NSMutableDictionary dictionary];
+                wifiEvent[@"type"] = @"wifiRegistration";
+                wifiEvent[@"wifiStatus"] = @(wifiStatus);
+                wifiEvent[@"moduleMac"] = rfModuleMac;
+                wifiEvent[@"lockMac"] = lockMac;
+                wifiEvent[@"statusMessage"] = statusMessage;
+                [eventEmitter emitEvent:wifiEvent];
+
+                // Emit RF sign registration event (normalized to Android model)
+                NSMutableDictionary *rfEvent = [NSMutableDictionary dictionary];
+                rfEvent[@"type"] = @"rfSignRegistration";
+                rfEvent[@"operMode"] = @(wifiStatus);
+                rfEvent[@"moduleMac"] = rfModuleMac;
+                rfEvent[@"originalModuleMac"] = @"";
+                rfEvent[@"statusMessage"] = statusMessage;
+                [eventEmitter emitEvent:rfEvent];
+
+                // Remove observer on terminal states to avoid leaking and duplicate events
+                if (wifiStatus == 0x05 || wifiStatus == 0x06 || wifiStatus == 0x07 || wifiStatus == 0x08 || wifiStatus == 0x09) {
+                    if (obs) [[NSNotificationCenter defaultCenter] removeObserver:obs];
+                }
+            } @catch (NSException *ex) {
+                [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": ex.reason ?: @"Exception in WiFi notification handler", @"code": @(-1) }];
+            }
+        }];
+
         [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
@@ -952,7 +1007,13 @@
                 event[@"moduleMac"] = rfModuleMac ?: @"";
                 event[@"originalModuleMac"] = originalRfModuleMac ?: @"";
 
+                // Emit completion result as well (may duplicate a notification-based terminal event)
                 [eventEmitter emitEvent:event];
+
+                // If notification observer still exists and this indicates a terminal state, remove it
+                if ((wifiStatus == 0x05 || wifiStatus == 0x06 || wifiStatus == 0x07 || wifiStatus == 0x08 || wifiStatus == 0x09) && obs) {
+                    [[NSNotificationCenter defaultCenter] removeObserver:obs];
+                }
             } @catch (NSException *exception) {
                 [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": exception.reason ?: @"Exception in wifi callback", @"code": @(-1) }];
             }

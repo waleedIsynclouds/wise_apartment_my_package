@@ -122,6 +122,24 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.registerWifi(wifiConfig, dna);
   }
 
+  /// Returns a stream that starts WiFi registration on native side by
+  /// passing `wifiConfig` and `dna` as the EventChannel onListen arguments.
+  /// Use this to receive incremental registration events.
+  Stream<Map<String, dynamic>> wifiRegistrationStreamWithArgs(
+    String wifiConfig,
+    Map<String, dynamic> dna,
+  ) {
+    return WiseApartmentPlatform.instance.wifiRegistrationStreamWithArgs(
+      wifiConfig,
+      dna,
+    );
+  }
+
+  /// Stream that emits RF-sign registration events (operMode/moduleMac/originalModuleMac)
+  Stream<Map<String, dynamic>> get regwithRfSignStream {
+    return WiseApartmentPlatform.instance.regwithRfSignStream;
+  }
+
   /// Add a key to the lock. `auth` should contain auth/DNA fields; `params`
   /// contains action-specific parameters required by the native SDK.
   Future<Map<String, dynamic>> addLockKey(

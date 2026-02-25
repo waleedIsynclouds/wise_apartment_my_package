@@ -140,8 +140,10 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         'Subscribing to wifiRegistrationStreamWithArgs with RF code: $rfCode and DNA: $dna',
       );
 
-      // Cancel any existing subscription and start a new stream subscription
+      // Cancel any existing subscriptions and start new stream subscriptions
       _streamSubscription?.cancel();
+      _rfSignStreamSubscription?.cancel();
+
       _streamSubscription = _plugin
           .wifiRegistrationStreamWithArgs(rfCode, dna)
           .listen(
@@ -196,6 +198,23 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
               }
             },
           );
+
+      // Subscribe to RF-sign events (parallel stream) to display module-specific info
+      _rfSignStreamSubscription = _plugin.regwithRfSignStream.listen(
+        (m) {
+          if (!mounted) return;
+          final type = m['type'] as String?;
+          if (type == 'rfSignRegistration') {
+            setState(() {
+              _rfSignEvents.insert(0, m);
+              _latestRfSignEvent = m;
+            });
+          }
+        },
+        onError: (e) {
+          debugPrint('✗ RF-sign stream error: $e');
+        },
+      );
     } catch (e) {
       debugPrint('✗ WiFi registration failed: $e');
 

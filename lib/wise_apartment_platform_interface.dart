@@ -131,6 +131,19 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Events contain status codes and module/lock MAC addresses.
   Stream<Map<String, dynamic>> get wifiRegistrationStream;
 
+  /// Returns a broadcast stream for WiFi registration that passes `wifiJson`
+  /// and `dna` to the native EventChannel `onListen` handler so native can
+  /// start a streaming registration operation. Useful for starting the
+  /// registration flow and receiving native notifications in Dart.
+  Stream<Map<String, dynamic>> wifiRegistrationStreamWithArgs(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  );
+
+  /// Stream that emits RF sign registration results (RfSignRegResult-like)
+  /// Emitted by native when RF module registration events occur (operMode, moduleMac, originalModuleMac)
+  Stream<Map<String, dynamic>> get regwithRfSignStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
 
   /// Start the native getSysParam stream. Emits events on `getSysParamStream`.

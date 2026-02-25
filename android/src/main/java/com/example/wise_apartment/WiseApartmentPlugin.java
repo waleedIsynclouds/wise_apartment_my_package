@@ -127,6 +127,16 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
                       
                       Log.d(TAG, "Emitting wifiRegistration event: " + statusMessage);
                       eventSink.success(event);
+
+                      // Also emit an RF-sign style event for parity with iOS
+                      Map<String, Object> rfEvent = new java.util.HashMap<>();
+                      rfEvent.put("type", "rfSignRegistration");
+                      rfEvent.put("operMode", status);
+                      rfEvent.put("moduleMac", moduleMac != null ? moduleMac : "");
+                      rfEvent.put("originalModuleMac", "");
+                      rfEvent.put("statusMessage", statusMessage);
+                      Log.d(TAG, "Emitting rfSignRegistration event: " + statusMessage);
+                      eventSink.success(rfEvent);
                     }
                   }
                 });

@@ -85,6 +85,43 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _wifiRegistrationStream!;
   }
 
+  @override
+  Stream<Map<String, dynamic>> wifiRegistrationStreamWithArgs(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) {
+    final args = <String, dynamic>{'wifi': wifiJson, 'dna': dna};
+    // Use EventChannel with args so native onListen will start the operation
+    return eventChannel.receiveBroadcastStream(args).map((event) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'wifiRegistration') return m;
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    }).asBroadcastStream();
+  }
+
+  Stream<Map<String, dynamic>>? _regWithRfSignStream;
+
+  @override
+  Stream<Map<String, dynamic>> get regwithRfSignStream {
+    _regWithRfSignStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'rfSignRegistration' || type == 'wifiRegistration') {
+          // normalize keys for RF-sign payloads
+          return m;
+        }
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _regWithRfSignStream!;
+  }
+
   Stream<Map<String, dynamic>>? _addLockKeyStream;
 
   @override
