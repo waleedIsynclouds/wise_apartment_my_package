@@ -67,17 +67,6 @@ public class BleLockManager {
         void onError(Map<String, Object> event);
     }
 
-    /**
-     * Callback used to stream WiFi registration / RF-module registration
-     * events back to the plugin layer. Implementations should treat each
-     * invocation as an incremental event and must not assume the stream
-     * is closed after a single call.
-     */
-    public interface WifiRegistrationStreamCallback {
-        void onEvent(Map<String, Object> event);
-        void onError(Map<String, Object> errorEvent);
-    }
-
     // Helper: convert vendor Response<?> to stable Map<String,Object>
     private Map<String, Object> responseToMap(Response<?> response, Object bodyObj) {
         Map<String, Object> m = new HashMap<>();
@@ -921,26 +910,6 @@ public class BleLockManager {
                 @Override
                 public void onResponse(Response rfResp) {
                     try {
-                        // Extract RfSignRegResult from response
-                        if (rfResp != null && rfResp.body() instanceof RfSignRegResult) {
-                            RfSignRegResult rfResult = (RfSignRegResult) rfResp.body();
-                            
-                            // Emit intermediate event through callback
-                            if (bleClient instanceof MyBleClient) {
-                                MyBleClient myClient = (MyBleClient) bleClient;
-                                MyBleClient.RfSignRegistrationCallback callback = myClient.getRfSignCallback();
-                                if (callback != null) {
-                                    int operMode = rfResult.getOperMode();
-                                    String moduleMac = rfResult.getModuleMac() != null ? rfResult.getModuleMac() : "";
-                                    String originalModuleMac = rfResult.getOriginalModuleMac() != null ? rfResult.getOriginalModuleMac() : "";
-                                    
-                                    Log.d(TAG, "Emitting RF sign registration event: operMode=" + operMode + 
-                                          ", moduleMac=" + moduleMac + ", originalModuleMac=" + originalModuleMac);
-                                    callback.onRfSignRegistrationEvent(operMode, moduleMac, originalModuleMac);
-                                }
-                            }
-                        }
-                        
                         Map<String, Object> out = responseToMap(rfResp, null);
                         postResultSuccess(result, out);
                     } catch (Throwable t) {
@@ -957,161 +926,6 @@ public class BleLockManager {
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling rfModuleReg", t);
             postResultError(result, "ERROR", t.getMessage(), null);
-        }
-    }
-
-    /**
-     * Start a streaming WiFi/RF-module registration. Emits zero or more
-     * incremental events via the provided callback. This method does not
-     * complete/close the stream — callers should continue listening until
-     * they choose to cancel the EventChannel subscription.
-     */
-    public void registerWifiStream(Map<String, Object> args, final WifiRegistrationStreamCallback callback) {
-        Log.d(TAG, "registerWifiStream called with args: " + args);
-
-        String wifiJson = null;
-        if (args != null && args.containsKey("wifi")) {
-            Object w = args.get("wifi");
-            if (w instanceof String) {
-                wifiJson = (String) w;
-            } else {
-                wifiJson = w != null ? w.toString() : null;
-            }
-        }
-
-        if (wifiJson == null) {
-            if (callback != null) {
-                Map<String, Object> err = new HashMap<>();
-                err.put("type", "wifiRegistrationError");
-                err.put("message", "Missing wifi payload (wifi) in args");
-                callback.onError(err);
-            }
-            return;
-        }
-
-        com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction baseAuth = null;
-        try {
-            String macFromArgs = null;
-            if (args != null) {
-                Object m = args.get("mac");
-                if (m instanceof String) macFromArgs = (String) m;
-                else if (args.containsKey("device") && args.get("device") instanceof Map) {
-                    Object dev = ((Map) args.get("device")).get("mac");
-                    if (dev instanceof String) macFromArgs = (String) dev;
-                }
-            }
-
-            if (macFromArgs != null && !macFromArgs.isEmpty()) {
-                baseAuth = new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder()
-                        .mac(macFromArgs)
-                        .build();
-            } else if (args != null && args.containsKey("dna") && args.get("dna") instanceof Map) {
-                Map dnaMap = (Map) args.get("dna");
-                com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder b =
-                        new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder();
-
-                Object v;
-                v = dnaMap.get("protocolVer");
-                if (v instanceof Integer) b.bleProtocolVer((Integer) v);
-                else if (v instanceof String) { try { b.bleProtocolVer(Integer.parseInt((String) v)); } catch (Exception ignored) {} }
-
-                v = dnaMap.get("authorizedRoot");
-                if (v instanceof String) b.authCode((String) v);
-
-                v = dnaMap.get("dnaAes128Key");
-                if (v instanceof String) b.dnaKey((String) v);
-
-                v = dnaMap.get("mac");
-                if (v instanceof String) b.mac((String) v);
-
-                b.keyGroupId(900);
-                baseAuth = b.build();
-            } else {
-                baseAuth = PluginUtils.createAuthAction(args);
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "Failed to build baseAuth from dna map or mac, falling back", t);
-            baseAuth = PluginUtils.createAuthAction(args);
-        }
-
-        BlinkyAction action = new BlinkyAction();
-        action.setBaseAuthAction(baseAuth);
-
-        try {
-            bleClient.rfModuleReg(action, wifiJson, new FunCallback<RfSignRegResult>() {
-                @Override
-                public void onResponse(Response rfResp) {
-                    try {
-                        if (rfResp != null && rfResp.body() instanceof RfSignRegResult) {
-                            RfSignRegResult rfResult = (RfSignRegResult) rfResp.body();
-                            int operMode = rfResult.getOperMode();
-                            String moduleMac = rfResult.getModuleMac() != null ? rfResult.getModuleMac() : "";
-                            String originalModuleMac = rfResult.getOriginalModuleMac() != null ? rfResult.getOriginalModuleMac() : "";
-
-                            Map<String, Object> event = new HashMap<>();
-                            event.put("type", "rfSignRegistration");
-                            event.put("operMode", operMode);
-                            event.put("moduleMac", moduleMac);
-                            event.put("originalModuleMac", originalModuleMac);
-
-                            String statusMessage;
-                            switch (operMode) {
-                                case 0x02:
-                                    statusMessage = "NB-IoT (WIFI module) network distribution binding in progress";
-                                    break;
-                                case 0x04:
-                                    statusMessage = "WiFi module successfully connected to router";
-                                    break;
-                                case 0x05:
-                                    statusMessage = "WiFi module successfully connected to cloud (network configuration successful)";
-                                    break;
-                                case 0x06:
-                                    statusMessage = "Incorrect password";
-                                    break;
-                                case 0x07:
-                                    statusMessage = "WIFI pairing timeout";
-                                    break;
-                                default:
-                                    statusMessage = "Unknown operation mode: 0x" + Integer.toHexString(operMode);
-                                    break;
-                            }
-                            event.put("statusMessage", statusMessage);
-
-                            if (callback != null) callback.onEvent(event);
-                        } else {
-                            Map<String, Object> out = responseToMap(rfResp, null);
-                            if (callback != null) callback.onEvent(out);
-                        }
-                    } catch (Throwable t) {
-                        Log.e(TAG, "registerWifiStream onResponse processing failed", t);
-                        if (callback != null) {
-                            Map<String, Object> err = new HashMap<>();
-                            err.put("type", "wifiRegistrationError");
-                            err.put("message", t.getMessage());
-                            callback.onError(err);
-                        }
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    Log.e(TAG, "rfModuleReg failed (stream)", t);
-                    if (callback != null) {
-                        Map<String, Object> err = new HashMap<>();
-                        err.put("type", "wifiRegistrationError");
-                        err.put("message", t.getMessage());
-                        callback.onError(err);
-                    }
-                }
-            });
-        } catch (Throwable t) {
-            Log.e(TAG, "Exception calling rfModuleReg (stream)", t);
-            if (callback != null) {
-                Map<String, Object> err = new HashMap<>();
-                err.put("type", "wifiRegistrationError");
-                err.put("message", t.getMessage());
-                callback.onError(err);
-            }
         }
     }
 

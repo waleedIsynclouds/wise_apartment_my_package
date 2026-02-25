@@ -66,44 +66,6 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       public void onListen(Object arguments, EventChannel.EventSink events) {
         eventSink = events;
         Log.d(TAG, "EventChannel listener attached");
-
-        // If subscribe passed arguments (wifi/dna), start native registerWifi
-        try {
-          if (arguments instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> args = (Map<String, Object>) arguments;
-                if (args.containsKey("wifi")) {
-                  if (lockManager != null) {
-                    Log.d(TAG, "EventChannel onListen received wifi args - starting native registerWifi (stream)");
-                    lockManager.registerWifiStream(args, new BleLockManager.WifiRegistrationStreamCallback() {
-                      @Override
-                      public void onEvent(final Map<String, Object> event) {
-                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
-                          @Override
-                          public void run() {
-                            if (eventSink != null) eventSink.success(event);
-                          }
-                        });
-                      }
-
-                      @Override
-                      public void onError(final Map<String, Object> errorEvent) {
-                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
-                          @Override
-                          public void run() {
-                            if (eventSink != null) eventSink.success(errorEvent);
-                          }
-                        });
-                      }
-                    });
-                  } else {
-                    Log.w(TAG, "lockManager not initialized - cannot start registerWifi from stream onListen");
-                  }
-            }
-          }
-        } catch (Throwable t) {
-          Log.w(TAG, "Failed to start registerWifi from EventChannel onListen", t);
-        }
       }
 
       @Override
@@ -164,54 +126,6 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
                       event.put("statusMessage", statusMessage);
                       
                       Log.d(TAG, "Emitting wifiRegistration event: " + statusMessage);
-                      eventSink.success(event);
-                    }
-                  }
-                });
-              }
-            });
-          }
-          
-          // Register RF sign registration callback to emit events to Flutter
-          if (bleClient instanceof MyBleClient) {
-            ((MyBleClient) bleClient).setRfSignRegistrationCallback(new MyBleClient.RfSignRegistrationCallback() {
-              @Override
-              public void onRfSignRegistrationEvent(final int operMode, final String moduleMac, final String originalModuleMac) {
-                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
-                  @Override
-                  public void run() {
-                    if (eventSink != null) {
-                      Map<String, Object> event = new java.util.HashMap<>();
-                      event.put("type", "rfSignRegistration");
-                      event.put("operMode", operMode);
-                      event.put("moduleMac", moduleMac != null ? moduleMac : "");
-                      event.put("originalModuleMac", originalModuleMac != null ? originalModuleMac : "");
-                      
-                      // Add status message for convenience
-                      String statusMessage;
-                      switch (operMode) {
-                        case 0x02:
-                          statusMessage = "NB-IoT (WIFI module) network distribution binding in progress";
-                          break;
-                        case 0x04:
-                          statusMessage = "WiFi module successfully connected to router";
-                          break;
-                        case 0x05:
-                          statusMessage = "WiFi module successfully connected to cloud (network configuration successful)";
-                          break;
-                        case 0x06:
-                          statusMessage = "Incorrect password";
-                          break;
-                        case 0x07:
-                          statusMessage = "WIFI pairing timeout";
-                          break;
-                        default:
-                          statusMessage = "Unknown operation mode: 0x" + Integer.toHexString(operMode);
-                          break;
-                      }
-                      event.put("statusMessage", statusMessage);
-                      
-                      Log.d(TAG, "Emitting rfSignRegistration event: " + statusMessage);
                       eventSink.success(event);
                     }
                   }
@@ -562,36 +476,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case "regWifi":
         if (lockManager != null) {
-          if (eventSink != null) {
-            Log.d(TAG, "regWifi invoked while EventChannel listener active - starting streaming registerWifi");
-            lockManager.registerWifiStream((Map<String, Object>) call.arguments, new BleLockManager.WifiRegistrationStreamCallback() {
-              @Override
-              public void onEvent(final Map<String, Object> event) {
-                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
-                  @Override
-                  public void run() {
-                    if (eventSink != null) eventSink.success(event);
-                  }
-                });
-              }
-
-              @Override
-              public void onError(final Map<String, Object> errorEvent) {
-                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
-                  @Override
-                  public void run() {
-                    if (eventSink != null) eventSink.success(errorEvent);
-                  }
-                });
-              }
-            });
-            Map<String, Object> started = new java.util.HashMap<>();
-            started.put("streaming", true);
-            started.put("message", "registerWifi stream started - listen to EventChannel");
-            safeResult.success(started);
-          } else {
-            lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
-          }
+          lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
         } else {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
@@ -606,7 +491,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       case "addFingerprintKeyStream":
         if (lockManager != null) {
           if (eventSink != null) {
-            lockManager.addLockKeyStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.AddLockKeyStreamCallback() {
+            lockManager.addFingerprintKeyStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.AddLockKeyStreamCallback() {
               @Override
               public void onChunk(final Map<String, Object> chunkEvent) {
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
