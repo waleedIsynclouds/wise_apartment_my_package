@@ -6,6 +6,6 @@ class ExampleConfig {
 
   // Default WiFi SSID/password used to prefill the example form.
   // Update these values here to change defaults across the example app.
-  static const String defaultSsid = 'WALEED 0260';
-  static const String defaultPassword = '00000000';
+  static const String defaultSsid = 'LAVUI_4G';
+  static const String defaultPassword = 'Lavui@112';
 }
