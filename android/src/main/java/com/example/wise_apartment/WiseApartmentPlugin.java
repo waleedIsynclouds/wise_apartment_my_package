@@ -72,24 +72,33 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           if (arguments instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> args = (Map<String, Object>) arguments;
-            if (args.containsKey("wifi")) {
-              if (lockManager != null) {
-                Log.d(TAG, "EventChannel onListen received wifi args - starting native registerWifi");
-                final Result noop = new Result() {
-                  @Override
-                  public void success(Object o) { /* no-op */ }
+                if (args.containsKey("wifi")) {
+                  if (lockManager != null) {
+                    Log.d(TAG, "EventChannel onListen received wifi args - starting native registerWifi (stream)");
+                    lockManager.registerWifi((Map<String, Object>) args, new com.example.wise_apartment.utils.BleLockManager.WifiRegistrationStreamCallback() {
+                      @Override
+                      public void onEvent(final Map<String, Object> ev) {
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                          @Override
+                          public void run() {
+                            if (eventSink != null) eventSink.success(ev);
+                          }
+                        });
+                      }
 
-                  @Override
-                  public void error(String s, String s1, Object o) { /* no-op */ }
-
-                  @Override
-                  public void notImplemented() { /* no-op */ }
-                };
-                final OneShotResult safeResult = new OneShotResult(noop, TAG);
-                lockManager.registerWifi(args, safeResult);
-              } else {
-                Log.w(TAG, "lockManager not initialized - cannot start registerWifi from stream onListen");
-              }
+                      @Override
+                      public void onError(final Map<String, Object> error) {
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                          @Override
+                          public void run() {
+                            if (eventSink != null) eventSink.success(error);
+                          }
+                        });
+                      }
+                    });
+                  } else {
+                    Log.w(TAG, "lockManager not initialized - cannot start registerWifi from stream onListen");
+                  }
             }
           }
         } catch (Throwable t) {
@@ -553,7 +562,34 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case "regWifi":
         if (lockManager != null) {
-          lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
+          if (eventSink != null) {
+            // Start streaming registration and reply that streaming started
+            lockManager.registerWifi((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.WifiRegistrationStreamCallback() {
+              @Override
+              public void onEvent(final Map<String, Object> ev) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(ev);
+                  }
+                });
+              }
+
+              @Override
+              public void onError(final Map<String, Object> error) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(error);
+                  }
+                });
+              }
+            });
+            safeResult.success(java.util.Collections.singletonMap("streaming", true));
+          } else {
+            // Fallback: use the existing one-shot registerWifi that returns a Result
+            lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
+          }
         } else {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }

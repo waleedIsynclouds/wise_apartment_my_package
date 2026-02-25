@@ -879,6 +879,89 @@
     }
 }
 
+// Start WiFi registration and stream events via the provided eventEmitter.
+- (void)registerWifiStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[BleLockManager] registerWifiStream called with args: %@", args);
+    if (!eventEmitter) {
+        NSLog(@"[BleLockManager] ✗ eventEmitter is nil");
+        return;
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": cfgErr.message ?: @"Configuration error", @"code": @(-1) }];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": @"mac is required", @"code": @(-1) }];
+        return;
+    }
+
+    id wifiObj = args[@"wifi"] ?: args; // support callers that pass full map
+    NSString *wifiJson = nil;
+    if ([wifiObj isKindOfClass:[NSString class]]) wifiJson = (NSString *)wifiObj;
+    else if ([wifiObj isKindOfClass:[NSDictionary class]]) {
+        NSError *err = nil;
+        NSData *d = [NSJSONSerialization dataWithJSONObject:wifiObj options:0 error:&err];
+        if (!err && d) wifiJson = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+    }
+
+    SHBLENetworkConfigParam *param = [[SHBLENetworkConfigParam alloc] init];
+    param.lockMac = [mac lowercaseString];
+
+    if (wifiJson != nil) {
+        NSData *data = [(NSString *)wifiJson dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            NSError *jsonErr = nil;
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
+            if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
+                NSDictionary *m = (NSDictionary *)obj;
+                id ct = m[@"configType"]; if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
+                id ut = m[@"updateTokenId"]; if ([ut respondsToSelector:@selector(boolValue)]) param.updateTokenId = [ut boolValue];
+                id token = m[@"tokenId"]; if ([token isKindOfClass:[NSString class]]) param.tokenId = (NSString *)token;
+                id ssid = m[@"ssid"]; if ([ssid isKindOfClass:[NSString class]]) param.ssid = (NSString *)ssid;
+                id pwd = m[@"password"]; if ([pwd isKindOfClass:[NSString class]]) param.password = (NSString *)pwd;
+                id host = m[@"host"]; if ([host isKindOfClass:[NSString class]]) param.host = (NSString *)host;
+                id port = m[@"port"]; if ([port respondsToSelector:@selector(intValue)]) param.port = [port intValue];
+                id ag = m[@"autoGetIP"]; if ([ag respondsToSelector:@selector(boolValue)]) param.autoGetIP = [ag boolValue];
+                id ip = m[@"ip"]; if ([ip isKindOfClass:[NSString class]]) param.ip = (NSString *)ip;
+                id sub = m[@"subnetwork"]; if ([sub isKindOfClass:[NSString class]]) param.subnetwork = (NSString *)sub;
+                id router = m[@"routerIP"]; if ([router isKindOfClass:[NSString class]]) param.routerIP = (NSString *)router;
+            }
+        }
+    }
+
+    __weak typeof(self) weakSelf = self;
+    @try {
+        [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            @try {
+                NSMutableDictionary *event = [NSMutableDictionary dictionary];
+                event[@"type"] = @"wifiRegistration";
+                BOOL ok = (statusCode == KSHStatusCode_Success);
+                event[@"success"] = @(ok);
+                event[@"isSuccessful"] = @(ok);
+                event[@"isError"] = @(!ok);
+                event[@"code"] = @((NSInteger)statusCode);
+                event[@"message"] = reason ?: @"";
+                event[@"lockMac"] = macOut ?: [mac lowercaseString];
+                event[@"wifiStatus"] = @(wifiStatus);
+                event[@"moduleMac"] = rfModuleMac ?: @"";
+                event[@"originalModuleMac"] = originalRfModuleMac ?: @"";
+
+                [eventEmitter emitEvent:event];
+            } @catch (NSException *exception) {
+                [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": exception.reason ?: @"Exception in wifi callback", @"code": @(-1) }];
+            }
+        }];
+    } @catch (NSException *exception) {
+        [eventEmitter emitEvent:@{ @"type": @"wifiRegistrationError", @"message": exception.reason ?: @"Exception calling configWiFiLockNetworkWithParam", @"code": @(-1) }];
+    }
+}
+
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"syncLockTime" one:one]) return;

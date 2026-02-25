@@ -25,6 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result;
 - (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)addLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
+// Start a WiFi registration and stream incremental events via the provided eventEmitter.
+- (void)registerWifiStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result;
 - (void)exitCmd:(NSDictionary *)args result:(FlutterResult)result;
 

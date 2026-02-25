@@ -252,12 +252,11 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     if (arguments != nil && [arguments isKindOfClass:[NSDictionary class]]) {
         NSDictionary *args = (NSDictionary *)arguments;
         if (args[@"wifi"] != nil) {
-            NSLog(@"[WiseApartmentPlugin] onListen received wifi args - starting native registerWifi");
-            // Call handleRegisterWifi:result: but ignore the immediate result (events will be emitted via eventEmitter)
+            NSLog(@"[WiseApartmentPlugin] onListen received wifi args - starting native registerWifi (stream)");
+            // Start streaming registration via BleLockManager which will emit
+            // intermediate and final events through the shared eventEmitter.
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self handleRegisterWifi:args result:^(id _Nullable r) {
-                    // no-op - one-shot result is ignored when starting from stream
-                }];
+                [self.lockManager registerWifiStream:args eventEmitter:self.eventEmitter];
             });
         }
     }
@@ -324,7 +323,14 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     }
     // WiFi Configuration
     else if ([@"regWifi" isEqualToString:method]) {
-        [self handleRegisterWifi:args result:result];
+        NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+        if ([self.eventEmitter hasActiveListener]) {
+            NSLog(@"[WiseApartmentPlugin] EventChannel listener active - starting registerWifi stream via BleLockManager");
+            [self.lockManager registerWifiStream:params eventEmitter:self.eventEmitter];
+            result(@{ @"streaming": @YES, @"message": @"registerWifi stream started - listen to EventChannel" });
+        } else {
+            [self handleRegisterWifi:args result:result];
+        }
     }
     // BLE Connection
     else if ([@"connectBle" isEqualToString:method]) {
