@@ -312,6 +312,38 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.wifiRegistrationStream;
   }
 
+  /// Subscribe to a WiFi registration stream and start native registration
+  /// immediately with the provided `wifiJson` and `dna` map. The native
+  /// side will begin the registration when the Dart listener attaches.
+  Stream<Map<String, dynamic>> wifiRegistrationStreamWithArgs(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) {
+    return WiseApartmentPlatform.instance.wifiRegistrationStreamWithArgs(
+      wifiJson,
+      dna,
+    );
+  }
+
+  /// Stream of RF sign registration results from the device.
+  /// Emits events as the device progresses through RF module registration.
+  ///
+  /// Event format:
+  /// - type: 'rfSignRegistration'
+  /// - operMode: int (0x02, 0x04, 0x05, 0x06, 0x07)
+  /// - moduleMac: String (wireless module MAC address)
+  /// - originalModuleMac: String (original module MAC address)
+  ///
+  /// Operation mode codes:
+  /// - 0x02: NB-IoT (WIFI module) is in the process of network distribution binding operation
+  /// - 0x04: WiFi module successfully connected to the router (may not return)
+  /// - 0x05: WiFi module successfully connected to the cloud (network configuration successful)
+  /// - 0x06: Incorrect password (may not return)
+  /// - 0x07: WIFI pairing timeout (may not return)
+  Stream<Map<String, dynamic>> get regwithRfSignStream {
+    return WiseApartmentPlatform.instance.regwithRfSignStream;
+  }
+
   /// Start native sysParam stream for the provided auth/DNA map.
   Future<bool> startGetSysParamStream(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.startGetSysParamStream(auth);

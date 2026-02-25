@@ -17,6 +17,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.EnableLockKeyAc
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEAddBigDataKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEKeyValidTimeParam;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
+import com.example.hxjblinklibrary.blinkble.entity.reslut.RfSignRegResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
 import com.example.hxjblinklibrary.blinkble.entity.Response;
@@ -905,10 +906,30 @@ public class BleLockManager {
 
         try {
 
-            bleClient.rfModuleReg(action, wifiJson, new FunCallback() {
+            bleClient.rfModuleReg(action, wifiJson, new FunCallback<RfSignRegResult>() {
                 @Override
                 public void onResponse(Response rfResp) {
                     try {
+                        // Extract RfSignRegResult from response
+                        if (rfResp != null && rfResp.body() instanceof RfSignRegResult) {
+                            RfSignRegResult rfResult = (RfSignRegResult) rfResp.body();
+                            
+                            // Emit intermediate event through callback
+                            if (bleClient instanceof MyBleClient) {
+                                MyBleClient myClient = (MyBleClient) bleClient;
+                                MyBleClient.RfSignRegistrationCallback callback = myClient.getRfSignCallback();
+                                if (callback != null) {
+                                    int operMode = rfResult.getOperMode();
+                                    String moduleMac = rfResult.getModuleMac() != null ? rfResult.getModuleMac() : "";
+                                    String originalModuleMac = rfResult.getOriginalModuleMac() != null ? rfResult.getOriginalModuleMac() : "";
+                                    
+                                    Log.d(TAG, "Emitting RF sign registration event: operMode=" + operMode + 
+                                          ", moduleMac=" + moduleMac + ", originalModuleMac=" + originalModuleMac);
+                                    callback.onRfSignRegistrationEvent(operMode, moduleMac, originalModuleMac);
+                                }
+                            }
+                        }
+                        
                         Map<String, Object> out = responseToMap(rfResp, null);
                         postResultSuccess(result, out);
                     } catch (Throwable t) {

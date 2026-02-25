@@ -159,6 +159,16 @@ class MockWiseApartmentPlatform
   }
 
   @override
+  Stream<Map<String, dynamic>> get regwithRfSignStream {
+    return Stream.value({});
+  }
+
+  @override
+  Stream<Map<String, dynamic>> get bleEventStream {
+    return Stream.value({});
+  }
+
+  @override
   Stream<Map<String, dynamic>> get addLockKeyStream {
     return Stream.value({});
   }

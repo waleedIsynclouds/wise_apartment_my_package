@@ -21,13 +21,26 @@ public class MyBleClient extends HxjBleClient {
     private static final String TAG = "MyBleClient";
     private static MyBleClient sInstance;
     private WifiRegistrationCallback wifiCallback;
+    private RfSignRegistrationCallback rfSignCallback;
 
     public interface WifiRegistrationCallback {
         void onWifiRegistrationEvent(int status, String moduleMac, String lockMac);
     }
 
+    public interface RfSignRegistrationCallback {
+        void onRfSignRegistrationEvent(int operMode, String moduleMac, String originalModuleMac);
+    }
+
     public void setWifiRegistrationCallback(WifiRegistrationCallback callback) {
         this.wifiCallback = callback;
+    }
+
+    public void setRfSignRegistrationCallback(RfSignRegistrationCallback callback) {
+        this.rfSignCallback = callback;
+    }
+
+    public RfSignRegistrationCallback getRfSignCallback() {
+        return this.rfSignCallback;
     }
 
     public static MyBleClient getInstance(Context context) {

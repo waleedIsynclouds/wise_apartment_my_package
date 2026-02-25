@@ -23,8 +23,11 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   final _plugin = WiseApartment();
   bool _loading = false;
   StreamSubscription<Map<String, dynamic>>? _streamSubscription;
+  StreamSubscription<Map<String, dynamic>>? _rfSignStreamSubscription;
   List<WifiRegistrationEvent> _events = [];
   WifiRegistrationEvent? _latestEvent;
+  List<Map<String, dynamic>> _rfSignEvents = [];
+  Map<String, dynamic>? _latestRfSignEvent;
 
   // WiFi config parametersd
   final _ssidController = TextEditingController(text: 'LAVUI_4G');
@@ -44,13 +47,14 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen to WiFi registration events immediately
-    _setupWifiRegistrationListener();
+    // Listen to RF sign registration events
+    // _setupRfSignRegistrationListener();
   }
 
   @override
   void dispose() {
     _streamSubscription?.cancel();
+    _rfSignStreamSubscription?.cancel();
     _ssidController.dispose();
     _passwordController.dispose();
     _hostController.dispose();
@@ -58,64 +62,8 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     super.dispose();
   }
 
-  void _setupWifiRegistrationListener() {
-    debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🔌 Setting up WiFi registration listener');
-    debugPrint('════════════════════════════════════════════════════════════');
-
-    _streamSubscription = _plugin.wifiRegistrationStream.listen(
-      (eventMap) {
-        if (!mounted) return;
-
-        final type = eventMap['type'] as String?;
-        debugPrint('📩 EVENT RECEIVED: $type');
-        debugPrint('   Event data: $eventMap');
-
-        if (type == 'wifiRegistration') {
-          // Parse event into typed model
-          final event = WifiRegistrationEvent.fromMap(eventMap);
-
-          debugPrint(
-            '   ${event.statusEmoji} Status: ${event.statusHex} - ${event.statusMessage}',
-          );
-          debugPrint('   Module MAC: ${event.moduleMac}');
-          debugPrint('   Lock MAC: ${event.lockMac}');
-
-          setState(() {
-            _latestEvent = event;
-            _events.insert(0, event);
-
-            // Auto-stop loading when we reach a terminal state
-            if (event.isTerminal) {
-              _loading = false;
-            }
-          });
-
-          if (mounted) {
-            final color = _getStatusColor(event);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${event.statusEmoji} ${event.statusMessage}'),
-                backgroundColor: color,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-      },
-      onError: (error) {
-        debugPrint('✗ WiFi registration stream error: $error');
-        if (mounted) {
-          setState(() {
-            _latestEvent = null;
-            _loading = false;
-          });
-        }
-      },
-    );
-
-    debugPrint('✓ WiFi registration listener active');
-  }
+  // Note: WiFi/RF registration stream subscription is started when the
+  // user initiates registration via `wifiRegistrationStreamWithArgs`.
 
   Color _getStatusColor(WifiRegistrationEvent? event) {
     if (event == null) return Colors.grey;
@@ -188,13 +136,66 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
       final rfCode = wifiModel.toRfCodeString();
 
       final dna = widget.device.toMap();
-      log('Initiating WiFi registration with RF code: $rfCode and DNA: $dna');
-      final result = await _plugin.registerWifi(rfCode, dna);
+      log(
+        'Subscribing to wifiRegistrationStreamWithArgs with RF code: $rfCode and DNA: $dna',
+      );
 
-      debugPrint('✓ registerWifi method returned: $result');
+      // Cancel any existing subscription and start a new stream subscription
+      _streamSubscription?.cancel();
+      _streamSubscription = _plugin
+          .wifiRegistrationStreamWithArgs(rfCode, dna)
+          .listen(
+            (eventMap) {
+              if (!mounted) return;
 
-      // The actual status updates will come via the stream listener
-      // Method call just initiates the process
+              final type = eventMap['type'] as String?;
+              debugPrint('📩 EVENT RECEIVED: $type');
+              debugPrint('   Event data: $eventMap');
+
+              if (type == 'wifiRegistration') {
+                // Parse event into typed model
+                final event = WifiRegistrationEvent.fromMap(eventMap);
+
+                debugPrint(
+                  '   ${event.statusEmoji} Status: ${event.statusHex} - ${event.statusMessage}',
+                );
+                debugPrint('   Module MAC: ${event.moduleMac}');
+                debugPrint('   Lock MAC: ${event.lockMac}');
+
+                setState(() {
+                  _latestEvent = event;
+                  _events.insert(0, event);
+
+                  // Auto-stop loading when we reach a terminal state
+                  if (event.isTerminal) {
+                    _loading = false;
+                  }
+                });
+
+                if (mounted) {
+                  final color = _getStatusColor(event);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${event.statusEmoji} ${event.statusMessage}',
+                      ),
+                      backgroundColor: color,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              }
+            },
+            onError: (error) {
+              debugPrint('✗ WiFi registration stream error: $error');
+              if (mounted) {
+                setState(() {
+                  _latestEvent = null;
+                  _loading = false;
+                });
+              }
+            },
+          );
     } catch (e) {
       debugPrint('✗ WiFi registration failed: $e');
 
@@ -217,6 +218,8 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     setState(() {
       _events.clear();
       _latestEvent = null;
+      _rfSignEvents.clear();
+      _latestRfSignEvent = null;
     });
   }
 
@@ -365,6 +368,60 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
               ),
 
               const SizedBox(height: 16),
+
+              // RF Sign Events Section (for debugging/testing)
+              if (_rfSignEvents.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: Colors.blue.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.settings_input_antenna,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'RF Sign Events (${_rfSignEvents.length})',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          if (_latestRfSignEvent != null) ...[
+                            const Divider(),
+                            Text(
+                              'Latest: ${_latestRfSignEvent!['statusMessage']}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'OperMode: 0x${(_latestRfSignEvent!['operMode'] as num).toInt().toRadixString(16).padLeft(2, '0')}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              'Module MAC: ${_latestRfSignEvent!['moduleMac']}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 8),
 
               // Status History
               Expanded(
