@@ -22,7 +22,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         // Local maven repo containing published vendor AARs from the plugin module
-        maven(url = uri("../../android/maven-repo"))
+        maven(url = uri("${rootDir}/android/maven-repo"))
     }
 }
 

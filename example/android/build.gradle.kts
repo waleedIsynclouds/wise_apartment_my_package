@@ -1,10 +1,13 @@
 allprojects {
     repositories {
+        // Resolve vendor AARs published by the plugin to the local maven-repo
+        maven {
+            // Resolve from the root project directory to avoid relative path issues
+            url = uri("${rootProject.projectDir}/../../android/maven-repo")
+        }
         google()
         mavenLocal()
         mavenCentral()
-        // Resolve vendor AARs published by the plugin to the local maven-repo
-        maven { url = uri("../../android/maven-repo") }
     }
 }
 

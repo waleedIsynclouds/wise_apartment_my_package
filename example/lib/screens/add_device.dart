@@ -1,4 +1,5 @@
 // ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:flutter/services.dart';
@@ -285,10 +286,164 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
 
   // progress dialog is declared below at file scope
 
+  /// Shows the DNA import bottom sheet. The user can paste a raw DNA JSON map
+  /// (as returned by the SDK or getDna). After pressing Import the map is
+  /// parsed into a [DnaInfoModel], saved to storage, and the user is taken
+  /// straight to the device details screen.
+  Future<void> _showImportDnaBottomSheet() async {
+    final pasteController = TextEditingController();
+    String? errorText;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            Future<void> onImport() async {
+              final raw = pasteController.text.trim();
+              if (raw.isEmpty) {
+                setSheetState(() => errorText = 'Please paste a DNA JSON map.');
+                return;
+              }
+
+              Map<String, dynamic> dnaMap;
+              try {
+                final decoded = json.decode(raw);
+                if (decoded is! Map) throw const FormatException('Not a JSON object');
+                dnaMap = Map<String, dynamic>.from(decoded as Map);
+              } catch (e) {
+                setSheetState(() => errorText = 'Invalid JSON: $e');
+                return;
+              }
+
+              final mac = dnaMap['mac'] as String?;
+              if (mac == null || mac.trim().isEmpty) {
+                setSheetState(() => errorText = 'DNA map must contain a "mac" field.');
+                return;
+              }
+
+              Navigator.of(sheetCtx).pop();
+
+              await SecureDeviceStorage.addDevice(dnaMap);
+
+              if (!mounted) return;
+              await Navigator.of(context).push<Map<String, dynamic>>(
+                MaterialPageRoute(
+                  builder: (_) => DeviceDetailsScreen(
+                    device: DnaInfoModel.fromMap(dnaMap),
+                  ),
+                ),
+              );
+
+              if (mounted) Navigator.pop(context, {'added': true});
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Import DNA Map',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Paste the full DNA JSON object returned by the lock or getDna().',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Paste + clear row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.paste, size: 16),
+                        label: const Text('Paste'),
+                        onPressed: () async {
+                          final clip = await Clipboard.getData(Clipboard.kTextPlain);
+                          if (clip?.text != null) {
+                            pasteController.text = clip!.text!;
+                            setSheetState(() => errorText = null);
+                          }
+                        },
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.clear, size: 16),
+                        label: const Text('Clear'),
+                        onPressed: () {
+                          pasteController.clear();
+                          setSheetState(() => errorText = null);
+                        },
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: pasteController,
+                    maxLines: 10,
+                    onChanged: (_) => setSheetState(() => errorText = null),
+                    decoration: InputDecoration(
+                      hintText: '{\n  "mac": "6f43d53f7e54",\n  "dnaAes128Key": "...",\n  ...\n}',
+                      border: const OutlineInputBorder(),
+                      errorText: errorText,
+                    ),
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.download_done),
+                    label: const Text('Import'),
+                    onPressed: onImport,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Device')),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'importDna',
+            onPressed: _showImportDnaBottomSheet,
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Import DNA'),
+            tooltip: 'Import a full DNA JSON map',
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _startScan,
         child: _scanning && _scanned.isEmpty
