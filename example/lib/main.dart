@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'screens/add_device.dart';
 import 'screens/device_details.dart';
@@ -394,6 +395,112 @@ class _MyAppState extends State<MyApp> {
     setState(() => _savedDevices = list);
   }
 
+  Future<void> _showImportDnaDialog() async {
+    final controller = TextEditingController();
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import DNA JSON'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            maxLines: 12,
+            decoration: const InputDecoration(hintText: 'Paste DNA JSON here'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final text = controller.text.trim();
+              if (text.isEmpty) {
+                _addLog('Import cancelled: empty input.');
+                Navigator.of(ctx).pop(false);
+                return;
+              }
+              try {
+                final parsed = json.decode(text);
+                Map<String, dynamic>? map;
+                if (parsed is List) {
+                  if (parsed.isEmpty)
+                    throw FormatException('JSON array is empty');
+                  if (parsed.first is Map) {
+                    map = Map<String, dynamic>.from(parsed.first as Map);
+                  } else {
+                    throw FormatException(
+                      'JSON array does not contain objects',
+                    );
+                  }
+                } else if (parsed is Map) {
+                  map = Map<String, dynamic>.from(parsed as Map);
+                } else {
+                  throw FormatException(
+                    'JSON must be an object or array of objects',
+                  );
+                }
+
+                // Basic validation: require mac or deviceDnaInfoStr
+                final hasMac =
+                    map['mac'] is String &&
+                    map['mac'].toString().trim().isNotEmpty;
+                final hasDna =
+                    map['deviceDnaInfoStr'] is String &&
+                    map['deviceDnaInfoStr'].toString().trim().isNotEmpty;
+                if (!hasMac && !hasDna) {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (ctx2) => AlertDialog(
+                      title: const Text('Invalid DNA'),
+                      content: const Text(
+                        'JSON must contain "mac" or "deviceDnaInfoStr".',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx2).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
+
+                // Validate/normalize via model (non-throwing)
+                DnaInfoModel.fromMap(map);
+
+                await SecureDeviceStorage.addDevice(map);
+                await _loadSavedDevices();
+                _addLog(
+                  'Imported DNA for ${map['mac'] ?? map['deviceDnaInfoStr']}',
+                );
+                Navigator.of(ctx).pop(true);
+              } catch (e) {
+                await showDialog<void>(
+                  context: context,
+                  builder: (ctx2) => AlertDialog(
+                    title: const Text('Import Error'),
+                    content: Text(e.toString()),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx2).pop(),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -414,6 +521,11 @@ class _MyAppState extends State<MyApp> {
             tooltip: 'Build Config',
             onPressed: _getBuildConfig,
             icon: const Icon(Icons.settings),
+          ),
+          IconButton(
+            tooltip: 'Import DNA JSON',
+            onPressed: _showImportDnaDialog,
+            icon: const Icon(Icons.upload_file),
           ),
         ],
       ),
