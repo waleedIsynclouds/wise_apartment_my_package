@@ -1,10 +1,13 @@
 #import "DeviceInfoManager.h"
 
 #import <UIKit/UIKit.h>
+#import <TargetConditionals.h>
 
+#if !TARGET_OS_SIMULATOR
 #import <HXJBLESDK/HXBluetoothNBInfoHelper.h>
 #import <HXJBLESDK/HXBluetoothCat1InfoHelper.h>
 #import <HXJBLESDK/HXBluetoothLockHelper.h>
+#endif
 
 #import "OneShotResult.h"
 #import "PluginUtils.h"
@@ -76,6 +79,9 @@
         return;
     }
 
+#if TARGET_OS_SIMULATOR
+    [one error:@"ERROR" message:@"BLE lock hardware is not available on the iOS Simulator" details:nil];
+#else
     HXBluetoothNBInfoHelper *helper = [[HXBluetoothNBInfoHelper alloc] init];
     [helper getNBRegistInfoWithLockMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *cardID, NSString *IMEI, NSString *csq) {
         if (statusCode == KSHStatusCode_Success) {
@@ -93,6 +99,7 @@
             [one error:@"ERROR" message:(reason ?: @"ERROR") details:nil];
         }
     }];
+#endif
 }
 
 - (void)getCat1Info:(NSDictionary *)args result:(FlutterResult)result {
@@ -104,6 +111,9 @@
         return;
     }
 
+#if TARGET_OS_SIMULATOR
+    [one error:@"ERROR" message:@"BLE lock hardware is not available on the iOS Simulator" details:nil];
+#else
     HXBluetoothCat1InfoHelper *helper = [[HXBluetoothCat1InfoHelper alloc] init];
     [helper getCat1RegistInfoWithLockMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *ICCID, NSString *IMEI, NSString *IMSI, NSString *RSSI, NSString *RSRP, NSString *SINR) {
         if (statusCode == KSHStatusCode_Success) {
@@ -120,6 +130,7 @@
             [one error:@"ERROR" message:(reason ?: @"ERROR") details:nil];
         }
     }];
+#endif
 }
 
 @end

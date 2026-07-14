@@ -17,6 +17,9 @@
 #import "LockRecordManager.h"
 #import "HxjBleClient.h"
 
+#import <TargetConditionals.h>
+
+#if !TARGET_OS_SIMULATOR
 #import <HXJBLESDK/HXJBLESDKHeader.h>
 #import <HXJBLESDK/HXAddBluetoothLockHelper.h>
 #import <HXJBLESDK/SHBLENetworkConfigParam.h>
@@ -25,6 +28,7 @@
 #import <HXJBLESDK/HXKeyModel.h>
 #import <HXJBLESDK/SHWiFiNetworkConfigReportParam.h>
 #import <HXJBLESDK/JQBLEDefines.h>
+#endif
 
 // Channel names
 // Primary MethodChannel name (per requirement)
@@ -52,7 +56,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 @property (nonatomic, strong) LockRecordManager *recordManager;
 
 @property (nonatomic, copy, nullable) NSString *lastConnectedMac;
-@property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
+@property (nonatomic, strong) id addHelper;
 
 @end
 
@@ -115,11 +119,13 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     self.recordManager = [[LockRecordManager alloc] initWithBleClient:self.bleClient eventEmitter:self.eventEmitter];
     
     // Register WiFi network config notification observer
+#if !TARGET_OS_SIMULATOR
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handleWiFiNetworkConfigNotification:)
                                                  name:KSHNotificationWiFiNetworkConfig
                                                object:nil];
     NSLog(@"[WiseApartmentPlugin] WiFi network config notification observer registered");
+#endif
     
     NSLog(@"[WiseApartmentPlugin] All components setup complete");
 }
@@ -139,10 +145,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     [self.eventEmitter clearEventSink];
 
     // Remove WiFi network config observer
+#if !TARGET_OS_SIMULATOR
     [[NSNotificationCenter defaultCenter] removeObserver:self
                                                     name:KSHNotificationWiFiNetworkConfig
                                                   object:nil];
     NSLog(@"[WiseApartmentPlugin] WiFi network config notification observer removed");
+#endif
     
     // Nullify channels
     self.methodChannel = nil;
@@ -154,6 +162,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 #pragma mark - WiFi Network Config Notification
 
 - (void)handleWiFiNetworkConfigNotification:(NSNotification *)notification {
+#if !TARGET_OS_SIMULATOR
     NSLog(@"[WiseApartmentPlugin] ========================================");
     NSLog(@"[WiseApartmentPlugin] WiFi Network Config Notification Received");
     NSLog(@"[WiseApartmentPlugin] ========================================");
@@ -214,6 +223,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     
     [self.eventEmitter emitEvent:event];
     NSLog(@"[WiseApartmentPlugin] WiFi registration event emitted to Flutter");
+ #else
+    (void)notification;
+#endif
 }
 
 #pragma mark - FlutterStreamHandler (EventChannel)
@@ -459,6 +471,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 // WiFi Configuration
 
 - (void)handleRegisterWifi:(id)args result:(FlutterResult)result {
+#if TARGET_OS_SIMULATOR
+    (void)args;
+    result(@{ @"success": @NO, @"isSuccessful": @NO, @"isError": @YES,
+              @"code": @(-100),
+              @"message": @"BLE lock hardware is not available on the iOS Simulator" });
+#else
     NSLog(@"[WiseApartmentPlugin] handleRegisterWifi called with args: %@", args);
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
@@ -648,11 +666,16 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
             });
         });
     }];
+ #endif
 }
 
 // BLE Connection
 
 - (void)handleConnectBle:(id)args result:(FlutterResult)result {
+#if TARGET_OS_SIMULATOR
+    (void)args;
+    result(@NO);
+#else
     NSLog(@"[WiseApartmentPlugin] handleConnectBle called with args: %@", args);
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params || !params[@"mac"]) {
@@ -678,9 +701,14 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
             result(@(ok));
         });
     }];
+#endif
 }
 
 - (void)handleDisconnectBle:(FlutterResult)result {
+#if TARGET_OS_SIMULATOR
+    self.lastConnectedMac = nil;
+    result(@NO);
+#else
     NSLog(@"[WiseApartmentPlugin] handleDisconnectBle called");
     if (self.lastConnectedMac.length == 0) {
         result(@NO);
@@ -694,6 +722,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     
     [HXBluetoothLockHelper tryDisconnectPeripheralWithMac:self.lastConnectedMac];
     result(@YES);
+#endif
 }
 
 - (void)handleDisconnect:(id)args result:(FlutterResult)result {
@@ -705,6 +734,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
 #pragma mark - HXJBLESDK Helpers
 
+#if !TARGET_OS_SIMULATOR
 - (BOOL)wa_configureDeviceForAuth:(NSDictionary *)auth {
     if (![auth isKindOfClass:[NSDictionary class]]) return NO;
     NSString *mac = auth[@"mac"];
@@ -826,6 +856,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     p.routerIP = parts[11] ?: @"";
     return p;
 }
+#endif
 
 // Network Info
 
@@ -887,6 +918,11 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 }
 
 - (void)handleAddLockKey:(id)args result:(FlutterResult)result {
+#if TARGET_OS_SIMULATOR
+    (void)args;
+    result(@{ @"success": @NO, @"code": @(-100),
+              @"message": @"BLE lock hardware is not available on the iOS Simulator" });
+#else
     NSLog(@"[WiseApartmentPlugin] handleAddLockKey called with args: %@", args);
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
@@ -1022,9 +1058,15 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         NSLog(@"[WiseApartmentPlugin] Exception calling addKey: %@", exception);
         result(@{@"success": @NO, @"message": exception.reason ?: @"Exception calling addKey"});
     }
+#endif
 }
 
 - (void)handleDeleteLockKey:(id)args result:(FlutterResult)result {
+#if TARGET_OS_SIMULATOR
+    (void)args;
+    result(@{ @"success": @NO, @"code": @(-100),
+              @"message": @"BLE lock hardware is not available on the iOS Simulator" });
+#else
     NSLog(@"[WiseApartmentPlugin] handleDeleteLockKey called with args: %@", args);
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
@@ -1145,6 +1187,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         NSLog(@"[WiseApartmentPlugin] Exception in handleDeleteLockKey: %@", exception);
         result(@{@"success": @NO, @"message": [exception reason] ?: @"Unknown exception"});
     }
+#endif
 }
 
 - (void)handleSyncLockKey:(id)args result:(FlutterResult)result {
@@ -1277,7 +1320,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
  * HXBluetoothLockHelper setDeviceAESKey. Returns YES if successful.
  */
 - (BOOL)prepare:(NSDictionary *)args {
+#if TARGET_OS_SIMULATOR
+    (void)args;
+    return NO;
+#else
     return [self wa_configureDeviceForAuth:args];
+#endif
 }
 
 @end

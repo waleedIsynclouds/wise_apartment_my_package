@@ -1,5 +1,14 @@
 #import "BleLockManager.h"
 
+#import <TargetConditionals.h>
+
+#import "BleScanManager.h"
+#import "HxjBleClient.h"
+#import "OneShotResult.h"
+#import "PluginUtils.h"
+#import "WAEventEmitter.h"
+
+#if !TARGET_OS_SIMULATOR
 #import <HXJBLESDK/HXBluetoothLockHelper.h>
 #import <HXJBLESDK/HXAddBluetoothLockHelper.h>
 #import <HXJBLESDK/SHAdvertisementModel.h>
@@ -8,18 +17,71 @@
 #import <HXJBLESDK/HXKeyModel.h>
 #import <HXJBLESDK/HXModifyKeyTimeParams.h>
 #import <HXJBLESDK/HXSetKeyEnableParams.h>
-
-#import "BleScanManager.h"
-#import "HxjBleClient.h"
-#import "OneShotResult.h"
-#import "PluginUtils.h"
-#import "WAEventEmitter.h"
+#endif
 
 @interface BleLockManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
 @property (nonatomic, strong) BleScanManager *scanManager;
-@property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
+@property (nonatomic, strong) id addHelper;
 @end
+
+#if TARGET_OS_SIMULATOR
+
+// BLE lock hardware cannot be linked on the iOS Simulator: HXJBLESDK.framework
+// ships a device-only arm64 binary with no simulator slice, and CoreBluetooth
+// itself is unavailable in Simulator regardless. This stub keeps the plugin's
+// public API intact so the app builds/runs; every call reports "unsupported".
+@implementation BleLockManager
+
+- (instancetype)initWithBleClient:(HxjBleClient *)bleClient scanManager:(BleScanManager *)scanManager {
+    self = [super init];
+    if (self) {
+        _bleClient = bleClient;
+        _scanManager = scanManager;
+    }
+    return self;
+}
+
+- (NSDictionary *)wa_simulatorUnsupportedResponse {
+    return @{
+        @"success": @NO,
+        @"isSuccessful": @NO,
+        @"isError": @YES,
+        @"code": @(-100),
+        @"message": @"BLE lock hardware is not available on the iOS Simulator",
+    };
+}
+
+- (void)openLock:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)closeLock:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)setKeyExpirationAlarmTime:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)deleteLock:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)changeLockKeyPwd:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)modifyLockKey:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)enableLockKey:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)getDna:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)addDevice:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)setSystemParameters:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+- (void)exitCmd:(NSDictionary *)args result:(FlutterResult)result { result([self wa_simulatorUnsupportedResponse]); }
+
+- (void)getSysParamStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    [eventEmitter emitEvent:@{ @"type": @"sysParamError", @"message": @"BLE lock hardware is not available on the iOS Simulator", @"code": @(-100) }];
+}
+
+- (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    [eventEmitter emitEvent:@{ @"type": @"syncLockKeyError", @"message": @"BLE lock hardware is not available on the iOS Simulator", @"code": @(-100) }];
+}
+
+- (void)addLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": @"BLE lock hardware is not available on the iOS Simulator", @"code": @(-100) }];
+}
+
+@end
+
+#else
 
 @implementation BleLockManager
 
@@ -1657,3 +1719,5 @@ static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
 
 
 @end
+
+#endif

@@ -1,6 +1,10 @@
 #import "HxjBleClient.h"
 
+#import <TargetConditionals.h>
+
+#if !TARGET_OS_SIMULATOR
 #import "../../Frameworks/HXJBLESDK.framework/Headers/HXBluetoothLockHelper.h"
+#endif
 
 @interface HxjBleClient ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *authCache;
@@ -42,10 +46,12 @@
 }
 
 - (void)disConnectBle:(void (^)(void))callback {
+#if !TARGET_OS_SIMULATOR
     NSString *mac = self.lastConnectedMac;
     if (mac.length > 0) {
         [HXBluetoothLockHelper tryDisconnectPeripheralWithMac:mac];
     }
+#endif
     if (callback) {
         dispatch_async(dispatch_get_main_queue(), callback);
     }

@@ -3,19 +3,54 @@
 #import "WAEventEmitter.h"
 
 #import <objc/runtime.h>
-
-#import <HXJBLESDK/HXBluetoothLockHelper.h>
-#import <HXJBLESDK/HXBLEDeviceBase.h>
+#import <TargetConditionals.h>
 
 #import "HxjBleClient.h"
 #import "OneShotResult.h"
 #import "PluginUtils.h"
 #import "WiseStatusCode.h"
 
+#if !TARGET_OS_SIMULATOR
+#import <HXJBLESDK/HXBluetoothLockHelper.h>
+#import <HXJBLESDK/HXBLEDeviceBase.h>
+#endif
+
 @interface LockRecordManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
 @property (nonatomic, weak) WAEventEmitter *eventEmitter;
 @end
+
+#if TARGET_OS_SIMULATOR
+
+// Lock records cannot be synced on the iOS Simulator: HXJBLESDK.framework
+// ships a device-only arm64 binary with no simulator slice, and CoreBluetooth
+// itself is unavailable in Simulator regardless.
+@implementation LockRecordManager
+
+- (instancetype)initWithBleClient:(HxjBleClient *)bleClient eventEmitter:(WAEventEmitter *)eventEmitter {
+    self = [super init];
+    if (self) {
+        _bleClient = bleClient;
+        _eventEmitter = eventEmitter;
+    }
+    return self;
+}
+
+- (void)syncLockRecordsStream:(NSDictionary *)args {
+    [self.eventEmitter emitEvent:@{
+        @"type": @"syncLockRecordsError",
+        @"message": @"BLE lock hardware is not available on the iOS Simulator",
+        @"code": @(-100),
+    }];
+}
+
+- (void)syncLockRecords:(NSDictionary *)args result:(FlutterResult)result {
+    result(@[]);
+}
+
+@end
+
+#else
 
 @implementation LockRecordManager
 
@@ -309,3 +344,5 @@
 }
 
 @end
+
+#endif

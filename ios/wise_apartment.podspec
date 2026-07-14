@@ -24,7 +24,7 @@ s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
     'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "${PODS_TARGET_SRCROOT}/Frameworks"',
-    'OTHER_LDFLAGS' => '$(inherited) -framework HXJBLESDK',
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -framework HXJBLESDK',
   }
 
   # System frameworks required for BLE operations

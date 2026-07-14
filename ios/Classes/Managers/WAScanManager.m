@@ -10,10 +10,65 @@
 #import "WAEventEmitter.h"
 #import "WAErrorHandler.h"
 
+#import <TargetConditionals.h>
+
+#if !TARGET_OS_SIMULATOR
 #import <HXJBLESDK/HXScanAllDevicesHelper.h>
 #import <HXJBLESDK/SHAdvertisementModel.h>
+#endif
 
 static NSString *const kWAUnknownDeviceName = @"Unknown Device";
+
+#if TARGET_OS_SIMULATOR
+
+// BLE scanning cannot be linked on the iOS Simulator: HXJBLESDK.framework
+// ships a device-only arm64 binary with no simulator slice, and CoreBluetooth
+// scanning itself is unavailable in Simulator regardless.
+@interface WAScanManager ()
+@property (nonatomic, weak) WAEventEmitter *eventEmitter;
+@end
+
+@implementation WAScanManager
+
+- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
+    self = [super init];
+    if (self) {
+        _eventEmitter = eventEmitter;
+    }
+    return self;
+}
+
+- (void)dealloc {
+}
+
+- (BOOL)startScanWithTimeout:(NSTimeInterval)timeout
+             allowDuplicates:(BOOL)allowDuplicates
+                       error:(NSError **)error {
+    if (error) {
+        *error = [WAErrorHandler errorWithCode:WAErrorCodeBluetoothUnavailable
+                                        message:@"BLE lock hardware is not available on the iOS Simulator"];
+    }
+    return NO;
+}
+
+- (void)stopScan {
+}
+
+- (BOOL)isScanning {
+    return NO;
+}
+
+- (NSArray<NSDictionary *> *)snapshotDiscoveredDevices {
+    return @[];
+}
+
+- (nullable SHAdvertisementModel *)advertisementForMac:(NSString *)mac {
+    return nil;
+}
+
+@end
+
+#else
 
 @interface WAScanManager () <HXScanAllDevicesHelperDelegate>
 
@@ -199,3 +254,5 @@ static NSString *const kWAUnknownDeviceName = @"Unknown Device";
 }
 
 @end
+
+#endif

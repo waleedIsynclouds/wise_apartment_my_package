@@ -1,9 +1,39 @@
 #import "BleScanManager.h"
 
-#import <HXJBLESDK/HXScanAllDevicesHelper.h>
-#import <HXJBLESDK/SHAdvertisementModel.h>
+#import <TargetConditionals.h>
 
 #import "OneShotResult.h"
+
+#if !TARGET_OS_SIMULATOR
+#import <HXJBLESDK/HXScanAllDevicesHelper.h>
+#import <HXJBLESDK/SHAdvertisementModel.h>
+#endif
+
+#if TARGET_OS_SIMULATOR
+
+// BLE scanning cannot be linked on the iOS Simulator: HXJBLESDK.framework
+// ships a device-only arm64 binary with no simulator slice, and CoreBluetooth
+// scanning itself is unavailable in Simulator regardless.
+@implementation BleScanManager
+
+- (void)startScan:(NSNumber *)timeoutMs result:(FlutterResult)result {
+    result(@[]);
+}
+
+- (void)stopScan:(FlutterResult)result {
+    result(@YES);
+}
+
+- (void)stopScan {
+}
+
+- (nullable SHAdvertisementModel *)advertisementForMac:(NSString *)mac {
+    return nil;
+}
+
+@end
+
+#else
 
 @interface BleScanManager () <HXScanAllDevicesHelperDelegate>
 
@@ -102,3 +132,5 @@
 }
 
 @end
+
+#endif
